@@ -1,0 +1,307 @@
+// Prisma Schema for Distributed Job Scheduler
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum RetryStrategy {
+  FIXED
+  LINEAR
+  EXPONENTIAL
+}
+
+enum JobStatus {
+  QUEUED
+  SCHEDULED
+  CLAIMED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ExecutionStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum WorkerStatus {
+  ONLINE
+  BUSY
+  DRAINING
+  OFFLINE
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  DEBUG
+}
+
+enum DLQStatus {
+  UNRESOLVED
+  RETRIED
+  DISCARDED
+}
+
+// -----------------------------------------------------------------------------
+// Core Domain Models
+// -----------------------------------------------------------------------------
+
+/// Multi-tenant top-level organization boundary
+model Organization {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users     User[]
+  projects  Project[]
+
+  @@map("organizations")
+}
+
+/// User credentials and access roles scoped to an Organization
+model User {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  email          String       @unique
+  passwordHash   String
+  role           UserRole     @default(MEMBER)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+/// Project container belonging to an Organization, owning multiple Queues
+model Project {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  slug           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  queues         Queue[]
+
+  @@unique([organizationId, slug])
+  @@map("projects")
+}
+
+/// Retry policy definitions configured for queues
+model RetryPolicy {
+  id             String        @id @default(uuid()) @db.Uuid
+  name           String
+  strategy       RetryStrategy @default(EXPONENTIAL)
+  baseDelaySec   Int           @default(5)
+  maxAttempts    Int           @default(3)
+  maxDelayCapSec Int           @default(3600)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  queues         Queue[]
+
+  @@map("retry_policies")
+}
+
+/// Job queue configuration belonging to a Project
+model Queue {
+  id               String       @id @default(uuid()) @db.Uuid
+  projectId        String       @db.Uuid
+  retryPolicyId    String?      @db.Uuid
+  name             String
+  description      String?
+  priority         Int          @default(0)
+  concurrencyLimit Int          @default(5)
+  paused           Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  retryPolicy      RetryPolicy? @relation(fields: [retryPolicyId], references: [id], onDelete: SetNull)
+  jobs             Job[]
+  scheduledJobs    ScheduledJob[]
+  deadLetterJobs   DeadLetterJob[]
+
+  @@unique([projectId, name])
+  @@map("queues")
+}
+
+/// Primary Job unit queued and claimed for execution
+model Job {
+  id               String       @id @default(uuid()) @db.Uuid
+  queueId          String       @db.Uuid
+  type             String
+  payload          Json
+  priority         Int          @default(0)
+  status           JobStatus    @default(QUEUED)
+  attemptCount     Int          @default(0)
+  maxAttempts      Int          @default(3)
+  scheduledAt      DateTime?
+  claimedAt        DateTime?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  lockedByWorkerId String?      @db.Uuid
+  lockExpiresAt    DateTime?
+  idempotencyKey   String?      @unique
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  queue            Queue        @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  lockedByWorker   Worker?      @relation(fields: [lockedByWorkerId], references: [id], onDelete: SetNull)
+  executions       JobExecution[]
+  logs             JobLog[]
+  heartbeats       WorkerHeartbeat[]
+  deadLetterJob    DeadLetterJob?
+
+  // Composite hot path index for atomic claiming query (FOR UPDATE SKIP LOCKED)
+  @@index([queueId, status, scheduledAt, priority(sort: Desc), createdAt(sort: Asc)], name: "idx_jobs_claim_hotpath")
+  // Composite index for queue-filtered dashboard queries
+  @@index([queueId, status, createdAt(sort: Desc)], name: "idx_jobs_queue_status_created")
+  // Index for global status queries and cleanup
+  @@index([status, createdAt(sort: Desc)], name: "idx_jobs_status_created")
+  // Index for detecting orphaned/crashed claimed jobs
+  @@index([status, lockExpiresAt], name: "idx_jobs_stale_claim_recovery")
+
+  @@map("jobs")
+}
+
+/// Execution record representing an individual attempt of a Job
+model JobExecution {
+  id         String          @id @default(uuid()) @db.Uuid
+  jobId      String          @db.Uuid
+  workerId   String?         @db.Uuid
+  attempt    Int
+  status     ExecutionStatus @default(RUNNING)
+  startedAt  DateTime        @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  result     Json?
+  error      Json?
+  createdAt  DateTime        @default(now())
+
+  job        Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  worker     Worker?         @relation(fields: [workerId], references: [id], onDelete: SetNull)
+  logs       JobLog[]
+
+  @@index([jobId, attempt], name: "idx_job_executions_job_attempt")
+  @@index([workerId, startedAt(sort: Desc)], name: "idx_job_executions_worker")
+  @@map("job_executions")
+}
+
+/// Recurring or delayed job definition (e.g. Cron / interval schedules)
+model ScheduledJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  queueId        String    @db.Uuid
+  name           String
+  jobType        String
+  payload        Json
+  cronExpression String?
+  nextRunAt      DateTime
+  lastRunAt      DateTime?
+  enabled        Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  queue          Queue     @relation(fields: [queueId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt], name: "idx_scheduled_jobs_next_run")
+  @@map("scheduled_jobs")
+}
+
+/// Worker node instances registered in the system
+model Worker {
+  id               String         @id @default(uuid()) @db.Uuid
+  name             String
+  hostname         String
+  processId        Int
+  status           WorkerStatus   @default(ONLINE)
+  concurrencyLimit Int            @default(10)
+  activeJobsCount  Int            @default(0)
+  lastSeenAt       DateTime       @default(now())
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  heartbeats       WorkerHeartbeat[]
+  lockedJobs       Job[]
+  executions       JobExecution[]
+
+  @@index([status, lastSeenAt], name: "idx_workers_status_last_seen")
+  @@map("workers")
+}
+
+/// Periodic liveness check and runtime diagnostic snapshot from a Worker
+model WorkerHeartbeat {
+  id           String   @id @default(uuid()) @db.Uuid
+  workerId     String   @db.Uuid
+  currentJobId String?  @db.Uuid
+  metrics      Json?
+  timestamp    DateTime @default(now())
+
+  worker       Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  currentJob   Job?     @relation(fields: [currentJobId], references: [id], onDelete: SetNull)
+
+  @@index([workerId, timestamp(sort: Desc)], name: "idx_worker_heartbeats_worker_time")
+  @@map("worker_heartbeats")
+}
+
+/// Detailed line-by-line logs emitted during job execution
+model JobLog {
+  id          String        @id @default(uuid()) @db.Uuid
+  jobId       String        @db.Uuid
+  executionId String?       @db.Uuid
+  level       LogLevel      @default(INFO)
+  message     String
+  meta        Json?
+  timestamp   DateTime      @default(now())
+
+  job         Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  execution   JobExecution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([jobId, timestamp(sort: Asc)], name: "idx_job_logs_job_time")
+  @@index([executionId], name: "idx_job_logs_execution")
+  @@map("job_logs")
+}
+
+/// Entry for permanently exhausted / failed jobs sent to the Dead Letter Queue
+model DeadLetterJob {
+  id            String    @id @default(uuid()) @db.Uuid
+  originalJobId String    @unique @db.Uuid
+  queueId       String    @db.Uuid
+  failedAt      DateTime  @default(now())
+  lastError     Json
+  totalAttempts Int
+  payload       Json
+  status        DLQStatus @default(UNRESOLVED)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  originalJob   Job       @relation(fields: [originalJobId], references: [id], onDelete: Cascade)
+  queue         Queue     @relation(fields: [queueId], references: [id], onDelete: Cascade)
+
+  @@index([queueId, status, failedAt(sort: Desc)], name: "idx_dlq_queue_status")
+  @@map("dead_letter_jobs")
+}

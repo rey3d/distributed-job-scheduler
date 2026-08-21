@@ -1,0 +1,1157 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "AppController_getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "summary": "Register a new user and tenant organization",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User and organization successfully created"
+          },
+          "409": {
+            "description": "User email already exists"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "summary": "Authenticate user credentials and obtain JWT access token",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JWT token issued successfully"
+          },
+          "401": {
+            "description": "Invalid email or password"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/organizations": {
+      "post": {
+        "operationId": "OrganizationsController_create",
+        "summary": "Create a new top-level tenant organization",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Organization created"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/organizations/{id}": {
+      "get": {
+        "operationId": "OrganizationsController_findOne",
+        "summary": "Get details for a specific organization",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization details"
+          },
+          "403": {
+            "description": "Cross-tenant access forbidden"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/organizations/{id}/projects": {
+      "post": {
+        "operationId": "ProjectsController_create",
+        "summary": "Create a new project under an organization",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created"
+          },
+          "403": {
+            "description": "Cross-tenant access forbidden"
+          }
+        },
+        "tags": [
+          "Projects"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "ProjectsController_findMany",
+        "summary": "List projects belonging to an organization (paginated)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated project list"
+          }
+        },
+        "tags": [
+          "Projects"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "operationId": "ProjectsController_findOne",
+        "summary": "Get project details by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project details"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "tags": [
+          "Projects"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/projects/{id}/queues": {
+      "post": {
+        "operationId": "QueuesController_create",
+        "summary": "Create a job queue under a project",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQueueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Queue created"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "QueuesController_findMany",
+        "summary": "List queues under a project with live job counts (paginated)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated queue list"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/queues/{id}": {
+      "get": {
+        "operationId": "QueuesController_findOne",
+        "summary": "Get queue details by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue details"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "QueuesController_update",
+        "summary": "Update queue configuration",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateQueueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Queue configuration updated"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "QueuesController_delete",
+        "summary": "Delete a queue and its jobs",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue deleted"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/queues/{id}/pause": {
+      "post": {
+        "operationId": "QueuesController_pause",
+        "summary": "Pause job claiming on a queue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue paused"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/queues/{id}/resume": {
+      "post": {
+        "operationId": "QueuesController_resume",
+        "summary": "Resume job claiming on a queue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue resumed"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/queues/{id}/jobs": {
+      "post": {
+        "operationId": "JobsController_createJob",
+        "summary": "Enqueue an immediate job into a queue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job enqueued"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "JobsController_findMany",
+        "summary": "List jobs in a queue (paginated, filterable, sortable)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "QUEUED",
+                "SCHEDULED",
+                "CLAIMED",
+                "RUNNING",
+                "COMPLETED",
+                "FAILED",
+                "CANCELLED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "endDate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-08-31T23:59:59.999Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "createdAt",
+              "enum": [
+                "createdAt",
+                "priority",
+                "status",
+                "scheduledAt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated job list"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/queues/{id}/jobs/scheduled": {
+      "post": {
+        "operationId": "JobsController_createScheduledJob",
+        "summary": "Enqueue a delayed or recurring cron job",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduledJobDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scheduled or recurring job created"
+          },
+          "400": {
+            "description": "Invalid cron expression or runAt timestamp"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "operationId": "JobsController_findOne",
+        "summary": "Get full job details including executions and audit logs",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job full details"
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "JobsController_cancelJob",
+        "summary": "Cancel a pending or scheduled job",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job cancelled"
+          },
+          "400": {
+            "description": "Cannot cancel active or completed job"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/jobs/{id}/retry": {
+      "post": {
+        "operationId": "JobsController_retryDeadLetterJob",
+        "summary": "Manually re-queue an exhausted job from the Dead Letter Queue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job re-queued successfully"
+          },
+          "404": {
+            "description": "Dead letter entry not found"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/projects/{id}/workers": {
+      "get": {
+        "operationId": "WorkersController_getWorkers",
+        "summary": "Get worker fleet status and active assignments for a project",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worker fleet details"
+          }
+        },
+        "tags": [
+          "Workers & Monitoring"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/projects/{id}/dead-letter": {
+      "get": {
+        "operationId": "WorkersController_getDeadLetterJobs",
+        "summary": "Get paginated Dead Letter Queue entries for a project",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated DLQ entries"
+          }
+        },
+        "tags": [
+          "Workers & Monitoring"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/projects/{id}/dashboard-summary": {
+      "get": {
+        "operationId": "WorkersController_getDashboardSummary",
+        "summary": "Get aggregate KPI metrics for dashboard cards",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Real aggregated dashboard KPI metrics"
+          }
+        },
+        "tags": [
+          "Workers & Monitoring"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Distributed Job Scheduling Platform API",
+    "description": "Multi-tenant REST API for managing organizations, projects, job queues, executions, retry policies, and monitoring.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "User registration and JWT authentication"
+    },
+    {
+      "name": "Organizations",
+      "description": "Tenant boundaries and management"
+    },
+    {
+      "name": "Projects",
+      "description": "Project containers belonging to organizations"
+    },
+    {
+      "name": "Queues",
+      "description": "Job queue configuration, priority, and pause/resume controls"
+    },
+    {
+      "name": "Jobs",
+      "description": "Job enqueuing, scheduling, inspection, DLQ retry, and cancellation"
+    },
+    {
+      "name": "Workers & Monitoring",
+      "description": "Worker fleet status, DLQ entries, and aggregated dashboard metrics"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "owner@acme.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "password123",
+            "minLength": 6
+          },
+          "organizationName": {
+            "type": "string",
+            "example": "Acme Operations Corp"
+          },
+          "organizationSlug": {
+            "type": "string",
+            "example": "acme-ops"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "organizationName"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "owner@acme.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "password123"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "CreateOrganizationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Stark Industries"
+          },
+          "slug": {
+            "type": "string",
+            "example": "stark-ind"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CreateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Payment Core Service"
+          },
+          "slug": {
+            "type": "string",
+            "example": "payment-core"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "RetryPolicyConfigDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Standard Exponential Backoff"
+          },
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "LINEAR",
+              "EXPONENTIAL"
+            ],
+            "default": "EXPONENTIAL"
+          },
+          "baseDelaySec": {
+            "type": "number",
+            "default": 5
+          },
+          "maxAttempts": {
+            "type": "number",
+            "default": 3
+          },
+          "maxDelayCapSec": {
+            "type": "number",
+            "default": 3600
+          }
+        },
+        "required": [
+          "strategy"
+        ]
+      },
+      "CreateQueueDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "email-notifications"
+          },
+          "description": {
+            "type": "string",
+            "example": "Transactional email dispatch queue"
+          },
+          "priority": {
+            "type": "number",
+            "default": 0
+          },
+          "concurrencyLimit": {
+            "type": "number",
+            "default": 5
+          },
+          "retryPolicyId": {
+            "type": "string"
+          },
+          "retryPolicy": {
+            "$ref": "#/components/schemas/RetryPolicyConfigDto"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateQueueDto": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "concurrencyLimit": {
+            "type": "number"
+          },
+          "retryPolicyId": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateJobDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "email.send"
+          },
+          "payload": {
+            "type": "object",
+            "example": {
+              "to": "user@example.com",
+              "template": "welcome"
+            }
+          },
+          "priority": {
+            "type": "number",
+            "default": 0
+          },
+          "maxAttempts": {
+            "type": "number",
+            "default": 3
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "example": "webhook-evt-991823"
+          }
+        },
+        "required": [
+          "type",
+          "payload"
+        ]
+      },
+      "CreateScheduledJobDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Nightly Database Backup"
+          },
+          "jobType": {
+            "type": "string",
+            "example": "db.backup"
+          },
+          "payload": {
+            "type": "object",
+            "example": {
+              "database": "production_main"
+            }
+          },
+          "runAt": {
+            "type": "string",
+            "example": "2026-08-25T04:00:00.000Z",
+            "description": "ISO Timestamp for a one-time delayed job"
+          },
+          "cronExpression": {
+            "type": "string",
+            "example": "0 0 * * *",
+            "description": "Standard 5-field cron expression for recurring jobs"
+          }
+        },
+        "required": [
+          "name",
+          "jobType",
+          "payload"
+        ]
+      }
+    }
+  }
+}

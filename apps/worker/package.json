@@ -1,0 +1,21 @@
+{
+  "name": "@job-scheduler/worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "npx vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@job-scheduler/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.1"
+  }
+}
