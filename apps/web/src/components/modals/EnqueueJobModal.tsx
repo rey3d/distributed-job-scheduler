@@ -64,7 +64,10 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
         delaySec,
       });
 
-      onJobEnqueued(`Enqueued job '${job.type}' (ID: ${job.id.slice(0, 8)})`);
+      const jobId = job?.id ? job.id.slice(0, 8) : 'submitted';
+      const typeStr = job?.type || jobType;
+
+      onJobEnqueued(`Enqueued job '${typeStr}' (ID: ${jobId})`);
       onClose();
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to enqueue job');

@@ -78,7 +78,7 @@ export class JobsService {
       }
     );
 
-    return result;
+    return result.job;
   }
 
   async createBatchJob(queueId: string, userOrgId: string, dto: CreateBatchJobDto) {

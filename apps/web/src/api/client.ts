@@ -148,14 +148,16 @@ export const api = {
     }),
 
   // Jobs
-  enqueueJob: (
+  enqueueJob: async (
     queueId: string,
     data: { type: string; payload?: any; priority?: number; delaySec?: number }
-  ) =>
-    request<Job>(`/queues/${queueId}/jobs`, {
+  ): Promise<Job> => {
+    const res = await request<any>(`/queues/${queueId}/jobs`, {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    });
+    return res?.job || res;
+  },
 
   getJobs: (queueId: string, params: { status?: string; page?: number; limit?: number } = {}) => {
     const query = new URLSearchParams();
