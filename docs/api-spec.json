@@ -1024,6 +1024,43 @@
           }
         ]
       }
+    },
+    "/projects/{id}/throughput-chart": {
+      "get": {
+        "operationId": "WorkersController_getThroughputChart",
+        "summary": "Get time-bucketed job completion counts for throughput chart",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Throughput time-bucket completion counts"
+          }
+        },
+        "tags": [
+          "Workers & Monitoring"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
     }
   },
   "info": {

@@ -40,4 +40,15 @@ export class WorkersController {
   ) {
     return this.workersService.getDashboardSummary(projectId, userOrgId);
   }
+
+  @Get('throughput-chart')
+  @ApiOperation({ summary: 'Get time-bucketed job completion counts for throughput chart' })
+  @ApiResponse({ status: 200, description: 'Throughput time-bucket completion counts' })
+  async getThroughputChart(
+    @Param('id') projectId: string,
+    @CurrentUser('organizationId') userOrgId: string,
+    @Query('hours') hours?: number
+  ) {
+    return this.workersService.getThroughputChart(projectId, userOrgId, hours ? Number(hours) : 6);
+  }
 }

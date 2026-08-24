@@ -9,6 +9,7 @@ import {
   Worker,
   DeadLetterJob,
   DashboardSummary,
+  ThroughputChartResponse,
   PaginatedResponse,
 } from './types';
 
@@ -102,9 +103,12 @@ export const api = {
 
   getProject: (id: string) => request<Project>(`/projects/${id}`),
 
-  // Dashboard Summary
+  // Dashboard Summary & Charts
   getDashboardSummary: (projectId: string) =>
     request<DashboardSummary>(`/projects/${projectId}/dashboard-summary`),
+
+  getThroughputChart: (projectId: string, hours = 6) =>
+    request<ThroughputChartResponse>(`/projects/${projectId}/throughput-chart?hours=${hours}`),
 
   // Queues
   getQueues: (projectId: string) =>

@@ -151,10 +151,28 @@ export interface DeadLetterJob {
 
 export interface DashboardSummary {
   activeQueues: number;
+  pausedQueues?: number;
   pendingJobs: number;
+  runningJobs?: number;
   completedToday: number;
+  failedToday?: number;
   deadLetterCount?: number;
   deadLetterJobs?: number;
+  onlineWorkers?: number;
+  successRate24h?: number;
+  systemHealth?: 'HEALTHY' | 'DEGRADED' | 'CRITICAL';
+}
+
+export interface ThroughputBucket {
+  time: string;
+  label: string;
+  completedCount: number;
+}
+
+export interface ThroughputChartResponse {
+  hours: number;
+  intervalMinutes: number;
+  buckets: ThroughputBucket[];
 }
 
 export interface PaginatedResponse<T> {
