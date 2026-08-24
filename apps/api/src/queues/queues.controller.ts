@@ -44,6 +44,17 @@ export class QueuesController {
     return this.queuesService.findById(queueId, userOrgId);
   }
 
+  @Get('queues/:id/stats')
+  @ApiOperation({ summary: 'Get real-time statistics and throughput metrics for a queue' })
+  @ApiResponse({ status: 200, description: 'Queue real-time statistics' })
+  @ApiResponse({ status: 404, description: 'Queue not found' })
+  async getStats(
+    @Param('id') queueId: string,
+    @CurrentUser('organizationId') userOrgId: string
+  ) {
+    return this.queuesService.getQueueStats(queueId, userOrgId);
+  }
+
   @Patch('queues/:id')
   @ApiOperation({ summary: 'Update queue configuration' })
   @ApiResponse({ status: 200, description: 'Queue configuration updated' })

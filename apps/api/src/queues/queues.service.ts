@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { prisma, JobStatus } from '@job-scheduler/shared';
+import { prisma, JobStatus, ExecutionStatus, DLQStatus } from '@job-scheduler/shared';
 import { CreateQueueDto } from './dto/create-queue.dto';
 import { UpdateQueueDto } from './dto/update-queue.dto';
 import { PaginationQueryDto, createPaginatedResponse } from '../common/dto/pagination.dto';
@@ -165,5 +165,73 @@ export class QueuesService {
     }));
 
     return createPaginatedResponse(queuesWithCounts, total, page, limit);
+  }
+
+  async getQueueStats(queueId: string, userOrgId: string) {
+    await this.verifyQueueAccess(queueId, userOrgId);
+
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+
+    const [completed24h, failed24h, completedLast15m, avgExecRes, dlqCount] = await Promise.all([
+      prisma.job.count({
+        where: {
+          queueId,
+          status: JobStatus.COMPLETED,
+          finishedAt: { gte: twentyFourHoursAgo },
+        },
+      }),
+      prisma.job.count({
+        where: {
+          queueId,
+          status: JobStatus.FAILED,
+          finishedAt: { gte: twentyFourHoursAgo },
+        },
+      }),
+      prisma.job.count({
+        where: {
+          queueId,
+          status: JobStatus.COMPLETED,
+          finishedAt: { gte: fifteenMinutesAgo },
+        },
+      }),
+      prisma.jobExecution.aggregate({
+        where: {
+          job: { queueId },
+          status: ExecutionStatus.SUCCESS,
+          finishedAt: { gte: twentyFourHoursAgo },
+        },
+        _avg: {
+          durationMs: true,
+        },
+      }),
+      prisma.deadLetterJob.count({
+        where: {
+          queueId,
+          status: DLQStatus.UNRESOLVED,
+        },
+      }),
+    ]);
+
+    const totalFinished24h = completed24h + failed24h;
+    const successRate =
+      totalFinished24h > 0
+        ? Number(((completed24h / totalFinished24h) * 100).toFixed(1))
+        : 100.0;
+
+    const avgDurationMs = Math.round(avgExecRes._avg.durationMs || 0);
+    const currentThroughput = Number((completedLast15m / 15).toFixed(1));
+
+    return {
+      queueId,
+      timeWindow: '24h',
+      jobsCompleted24h: completed24h,
+      jobsFailed24h: failed24h,
+      successRate,
+      avgDurationMs,
+      currentThroughput,
+      dlqCount,
+    };
   }
 }

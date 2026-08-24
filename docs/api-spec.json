@@ -133,6 +133,38 @@
         ]
       }
     },
+    "/organizations/{id}/users": {
+      "get": {
+        "operationId": "OrganizationsController_findUsers",
+        "summary": "Get team members of an organization",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of organization team members"
+          },
+          "403": {
+            "description": "Cross-tenant access forbidden"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/organizations/{id}/projects": {
       "post": {
         "operationId": "ProjectsController_create",
@@ -423,6 +455,38 @@
         "responses": {
           "200": {
             "description": "Queue deleted"
+          }
+        },
+        "tags": [
+          "Queues"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/queues/{id}/stats": {
+      "get": {
+        "operationId": "QueuesController_getStats",
+        "summary": "Get real-time statistics and throughput metrics for a queue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue real-time statistics"
+          },
+          "404": {
+            "description": "Queue not found"
           }
         },
         "tags": [

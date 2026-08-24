@@ -4,6 +4,7 @@ import {
   Organization,
   Project,
   Queue,
+  QueueStats,
   Job,
   Worker,
   DeadLetterJob,
@@ -108,6 +109,9 @@ export const api = {
   // Queues
   getQueues: (projectId: string) =>
     request<Queue[]>(`/projects/${projectId}/queues`),
+
+  getQueueStats: (queueId: string) =>
+    request<QueueStats>(`/queues/${queueId}/stats`),
 
   createQueue: (projectId: string, data: { name: string; priority?: number; concurrencyLimit?: number }) =>
     request<Queue>(`/projects/${projectId}/queues`, {

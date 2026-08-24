@@ -65,6 +65,17 @@ export interface Queue {
   };
 }
 
+export interface QueueStats {
+  queueId: string;
+  timeWindow: string;
+  jobsCompleted24h: number;
+  jobsFailed24h: number;
+  successRate: number;
+  avgDurationMs: number;
+  currentThroughput: number;
+  dlqCount: number;
+}
+
 export interface JobExecution {
   id: string;
   jobId: string;
