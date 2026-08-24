@@ -33,6 +33,51 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: job_scheduler_api
+    restart: always
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/job_scheduler_db?schema=public
+      JWT_SECRET: super-secret-jwt-key-aetherflow-2026
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: always
+    deploy:
+      mode: replicated
+      replicas: 3
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/job_scheduler_db?schema=public
+      POLL_INTERVAL_MS: 1000
+      HEARTBEAT_INTERVAL_MS: 5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: job_scheduler_web
+    restart: always
+    ports:
+      - '5173:80'
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
   redis_data:

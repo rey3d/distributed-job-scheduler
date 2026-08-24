@@ -19,13 +19,14 @@ distributed-job-scheduler/
 ├── packages/
 │   └── shared/       # Prisma schema, job engine (atomic claim, state machine, retries, DLQ)
 ├── docs/
+│   ├── scaling.md            # Multi-worker deployment & horizontal scaling guide
 │   ├── architecture.md       # Mermaid architecture & sequence diagrams
 │   ├── er-diagram.md         # Mermaid ER diagram & schema evolution notes
 │   ├── api-spec.json         # Static OpenAPI 3.0 JSON specification
 │   ├── DESIGN_DECISIONS.md   # Consolidated technical choices, trade-offs & limitations
 │   ├── phase-4-concurrency-proof.md # Multi-worker process proof (50/50 jobs executed, 0 duplicates)
 │   └── phase-5-notes.md      # Dashboard API integration notes
-├── docker-compose.yml # PostgreSQL 16 docker service
+├── docker-compose.yml        # Full container stack (PostgreSQL, Redis, API, 3x Worker Replicas, Web Dashboard)
 ├── pnpm-workspace.yaml
 ├── package.json
 └── README.md
@@ -38,26 +39,33 @@ distributed-job-scheduler/
 Ensure you have the following installed locally:
 - **Node.js**: `v20+` (v23 recommended)
 - **pnpm**: `v9+` (`npm install -g pnpm`)
-- **Docker & Docker Compose**: For local PostgreSQL database
+- **Docker & Docker Compose**: For local stack execution
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Multi-Worker Deployment & Quick Start
 
-### 1. Clone & Install Dependencies
+### Option 1: Launch Full Container Stack with 3 Worker Replicas (Recommended)
 
 ```bash
-git clone <repo-url>
-cd distributed-job-scheduler
-pnpm install
+# Build and start PostgreSQL, Redis, API, 3x Worker Replicas, and Web Dashboard
+docker-compose up -d --build
+
+# Scale to 5 worker replicas dynamically
+docker-compose up -d --scale worker=5
 ```
 
-### 2. Start PostgreSQL Database
-
-Start PostgreSQL (port 5432) via Docker Compose:
+### Option 2: Local Development Execution
 
 ```bash
-docker-compose up -d
+# 1. Start PostgreSQL & Redis
+docker-compose up -d postgres redis
+
+# 2. Push database schema
+pnpm --filter @job-scheduler/shared db:push
+
+# 3. Start API, Worker, and Web UI concurrently
+pnpm dev
 ```
 
 ### 3. Database Setup & Migrations

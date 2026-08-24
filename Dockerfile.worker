@@ -1,0 +1,11 @@
+FROM node:20-alpine AS builder
+WORKDIR /app
+RUN npm install -g pnpm
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages ./packages
+COPY apps/worker ./apps/worker
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @job-scheduler/shared build
+RUN pnpm --filter @job-scheduler/worker build
+
+CMD ["pnpm", "--filter", "@job-scheduler/worker", "start"]
