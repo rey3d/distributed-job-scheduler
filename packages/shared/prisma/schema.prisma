@@ -145,15 +145,32 @@ model Queue {
   jobs             Job[]
   scheduledJobs    ScheduledJob[]
   deadLetterJobs   DeadLetterJob[]
+  batches          Batch[]
 
   @@unique([projectId, name])
   @@map("queues")
+}
+
+/// Batch job container grouping multiple jobs submitted together
+model Batch {
+  id        String   @id @default(uuid()) @db.Uuid
+  queueId   String   @db.Uuid
+  totalJobs Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  queue     Queue    @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  jobs      Job[]
+
+  @@index([queueId, createdAt(sort: Desc)], name: "idx_batches_queue_created")
+  @@map("batches")
 }
 
 /// Primary Job unit queued and claimed for execution
 model Job {
   id               String       @id @default(uuid()) @db.Uuid
   queueId          String       @db.Uuid
+  batchId          String?      @db.Uuid
   type             String
   payload          Json
   priority         Int          @default(0)
@@ -171,6 +188,7 @@ model Job {
   updatedAt        DateTime     @updatedAt
 
   queue            Queue        @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  batch            Batch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
   lockedByWorker   Worker?      @relation(fields: [lockedByWorkerId], references: [id], onDelete: SetNull)
   executions       JobExecution[]
   logs             JobLog[]
@@ -185,6 +203,8 @@ model Job {
   @@index([status, createdAt(sort: Desc)], name: "idx_jobs_status_created")
   // Index for detecting orphaned/crashed claimed jobs
   @@index([status, lockExpiresAt], name: "idx_jobs_stale_claim_recovery")
+  // Index for batch jobs lookup
+  @@index([batchId], name: "idx_jobs_batch")
 
   @@map("jobs")
 }

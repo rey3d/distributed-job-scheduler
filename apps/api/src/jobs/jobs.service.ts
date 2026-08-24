@@ -14,6 +14,7 @@ import {
 import cronParser from 'cron-parser';
 import { CreateJobDto } from './dto/create-job.dto';
 import { CreateScheduledJobDto } from './dto/create-scheduled-job.dto';
+import { CreateBatchJobDto } from './dto/create-batch-job.dto';
 import { JobFilterQueryDto } from './dto/job-filter.dto';
 import { createPaginatedResponse } from '../common/dto/pagination.dto';
 
@@ -43,9 +44,16 @@ export class JobsService {
       include: {
         queue: {
           include: {
-            project: true,
+            retryPolicy: true,
           },
         },
+        executions: {
+          orderBy: { attempt: 'asc' },
+        },
+        logs: {
+          orderBy: { timestamp: 'asc' },
+        },
+        deadLetterJob: true,
       },
     });
 
@@ -71,6 +79,108 @@ export class JobsService {
     );
 
     return result;
+  }
+
+  async createBatchJob(queueId: string, userOrgId: string, dto: CreateBatchJobDto) {
+    await this.verifyQueueAccess(queueId, userOrgId);
+
+    if (!dto.jobs || dto.jobs.length === 0) {
+      throw new BadRequestException('Batch cannot be empty. Must include at least 1 job definition.');
+    }
+
+    if (dto.jobs.length > 500) {
+      throw new BadRequestException('Batch size exceeds maximum limit of 500 jobs per call');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      const batch = await tx.batch.create({
+        data: {
+          queueId,
+          totalJobs: dto.jobs.length,
+        },
+      });
+
+      const createdJobs: any[] = [];
+      for (const item of dto.jobs) {
+        const enqueueRes = await enqueueJobWithIdempotency(
+          queueId,
+          item.type,
+          item.payload,
+          item.idempotencyKey,
+          {
+            priority: item.priority ?? 0,
+            maxAttempts: item.maxAttempts ?? 3,
+          },
+          tx
+        );
+
+        const updatedJob = await tx.job.update({
+          where: { id: enqueueRes.job.id },
+          data: { batchId: batch.id },
+        });
+
+        createdJobs.push(updatedJob);
+      }
+
+      return {
+        batchId: batch.id,
+        queueId,
+        totalJobs: batch.totalJobs,
+        createdJobsCount: createdJobs.length,
+        createdAt: batch.createdAt,
+      };
+    });
+  }
+
+  async getBatchProgress(batchId: string, userOrgId: string) {
+    const batch = await prisma.batch.findFirst({
+      where: {
+        id: batchId,
+        queue: {
+          project: {
+            organizationId: userOrgId,
+          },
+        },
+      },
+      include: {
+        queue: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!batch) {
+      throw new NotFoundException(`Batch '${batchId}' not found or access denied`);
+    }
+
+    const statusCounts = await prisma.job.groupBy({
+      by: ['status'],
+      where: { batchId },
+      _count: { _all: true },
+    });
+
+    const counts: Record<string, number> = {
+      QUEUED: 0,
+      SCHEDULED: 0,
+      CLAIMED: 0,
+      RUNNING: 0,
+      COMPLETED: 0,
+      FAILED: 0,
+      CANCELLED: 0,
+    };
+
+    for (const item of statusCounts) {
+      counts[item.status] = item._count._all;
+    }
+
+    return {
+      id: batch.id,
+      queueId: batch.queueId,
+      queueName: batch.queue.name,
+      totalJobs: batch.totalJobs,
+      createdAt: batch.createdAt,
+      counts,
+    };
   }
 
   async createScheduledJob(queueId: string, userOrgId: string, dto: CreateScheduledJobDto) {

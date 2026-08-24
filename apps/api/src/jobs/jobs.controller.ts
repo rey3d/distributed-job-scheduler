@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { CreateScheduledJobDto } from './dto/create-scheduled-job.dto';
+import { CreateBatchJobDto } from './dto/create-batch-job.dto';
 import { JobFilterQueryDto } from './dto/job-filter.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -31,6 +32,29 @@ export class JobsController {
     @Body() dto: CreateJobDto
   ) {
     return this.jobsService.createJob(queueId, userOrgId, dto);
+  }
+
+  @Post('queues/:id/jobs/batch')
+  @ApiOperation({ summary: 'Create a batch of linked jobs in a single request' })
+  @ApiResponse({ status: 201, description: 'Batch created and jobs enqueued' })
+  @ApiResponse({ status: 400, description: 'Empty batch array or batch size exceeds maximum 500 limit' })
+  async createBatchJob(
+    @Param('id') queueId: string,
+    @CurrentUser('organizationId') userOrgId: string,
+    @Body() dto: CreateBatchJobDto
+  ) {
+    return this.jobsService.createBatchJob(queueId, userOrgId, dto);
+  }
+
+  @Get('batches/:id')
+  @ApiOperation({ summary: 'Get overall batch progress and status count breakdown' })
+  @ApiResponse({ status: 200, description: 'Batch progress details' })
+  @ApiResponse({ status: 404, description: 'Batch not found or access denied' })
+  async getBatchProgress(
+    @Param('id') batchId: string,
+    @CurrentUser('organizationId') userOrgId: string
+  ) {
+    return this.jobsService.getBatchProgress(batchId, userOrgId);
   }
 
   @Post('queues/:id/jobs/scheduled')

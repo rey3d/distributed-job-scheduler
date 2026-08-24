@@ -643,6 +643,80 @@
         ]
       }
     },
+    "/queues/{id}/jobs/batch": {
+      "post": {
+        "operationId": "JobsController_createBatchJob",
+        "summary": "Create a batch of linked jobs in a single request",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBatchJobDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Batch created and jobs enqueued"
+          },
+          "400": {
+            "description": "Empty batch array or batch size exceeds maximum 500 limit"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/batches/{id}": {
+      "get": {
+        "operationId": "JobsController_getBatchProgress",
+        "summary": "Get overall batch progress and status count breakdown",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Batch progress details"
+          },
+          "404": {
+            "description": "Batch not found or access denied"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/queues/{id}/jobs/scheduled": {
       "post": {
         "operationId": "JobsController_createScheduledJob",
@@ -1116,6 +1190,52 @@
         "required": [
           "type",
           "payload"
+        ]
+      },
+      "CreateBatchJobItemDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "email.send"
+          },
+          "payload": {
+            "type": "object",
+            "example": {
+              "to": "user@example.com",
+              "template": "welcome"
+            }
+          },
+          "priority": {
+            "type": "number",
+            "default": 0
+          },
+          "maxAttempts": {
+            "type": "number",
+            "default": 3
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "example": "batch-item-key-101"
+          }
+        },
+        "required": [
+          "type",
+          "payload"
+        ]
+      },
+      "CreateBatchJobDto": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateBatchJobItemDto"
+            }
+          }
+        },
+        "required": [
+          "jobs"
         ]
       },
       "CreateScheduledJobDto": {
