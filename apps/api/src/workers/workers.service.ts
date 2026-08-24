@@ -213,12 +213,13 @@ export class WorkersService {
 
     const completedBuckets = await prisma.$queryRaw<Array<{ time_bucket: Date; count: bigint }>>`
       SELECT 
-        to_timestamp(floor(extract(epoch from "finishedAt") / (15 * 60)) * (15 * 60)) AS time_bucket,
+        to_timestamp(floor(extract(epoch from j."finishedAt") / (15 * 60)) * (15 * 60)) AS time_bucket,
         COUNT(*)::bigint AS count
-      FROM jobs
-      WHERE "queueId" IN (${Prisma.join(queueIds)})
-        AND status = 'COMPLETED'
-        AND "finishedAt" >= ${startTime}
+      FROM jobs j
+      INNER JOIN queues q ON j."queueId" = q.id
+      WHERE q."projectId" = ${projectId}::uuid
+        AND j.status = 'COMPLETED'
+        AND j."finishedAt" >= ${startTime}
       GROUP BY time_bucket
       ORDER BY time_bucket ASC;
     `;
