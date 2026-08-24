@@ -1,4 +1,5 @@
 import {
+  User,
   AuthResponse,
   Organization,
   Project,
@@ -85,6 +86,8 @@ export const api = {
     }),
 
   getOrg: (id: string) => request<Organization>(`/organizations/${id}`),
+
+  getOrgUsers: (id: string) => request<User[]>(`/organizations/${id}/users`),
 
   // Projects
   createProject: (organizationId: string, name: string, slug?: string) =>

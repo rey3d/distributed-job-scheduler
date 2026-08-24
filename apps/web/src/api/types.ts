@@ -19,6 +19,7 @@ export interface User {
   name?: string;
   organizationId?: string;
   role?: string;
+  createdAt?: string;
 }
 
 export interface AuthResponse {

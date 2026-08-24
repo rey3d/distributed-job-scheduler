@@ -28,4 +28,15 @@ export class OrganizationsController {
   ) {
     return this.organizationsService.findById(id, userOrgId);
   }
+
+  @Get(':id/users')
+  @ApiOperation({ summary: 'Get team members of an organization' })
+  @ApiResponse({ status: 200, description: 'List of organization team members' })
+  @ApiResponse({ status: 403, description: 'Cross-tenant access forbidden' })
+  async findUsers(
+    @Param('id') id: string,
+    @CurrentUser('organizationId') userOrgId: string
+  ) {
+    return this.organizationsService.findUsersByOrg(id, userOrgId);
+  }
 }

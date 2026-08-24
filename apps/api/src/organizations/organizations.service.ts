@@ -38,4 +38,21 @@ export class OrganizationsService {
 
     return org;
   }
+
+  async findUsersByOrg(orgId: string, currentOrgId: string) {
+    if (orgId !== currentOrgId) {
+      throw new ForbiddenException('Access denied to cross-tenant organization');
+    }
+
+    return prisma.user.findMany({
+      where: { organizationId: orgId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

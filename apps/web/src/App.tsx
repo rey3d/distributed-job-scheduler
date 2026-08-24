@@ -6,6 +6,8 @@ import { JobExplorerView } from './components/views/JobExplorerView';
 import { WorkerFleetView } from './components/views/WorkerFleetView';
 import { QueuesView } from './components/views/QueuesView';
 import { DeadLetterQueueView } from './components/views/DeadLetterQueueView';
+import { OrganizationSettingsView } from './components/views/OrganizationSettingsView';
+import { ProjectSwitcher } from './components/layout/ProjectSwitcher';
 
 import { JobDetailModal } from './components/modals/JobDetailModal';
 import { EnqueueJobModal } from './components/modals/EnqueueJobModal';
@@ -26,11 +28,14 @@ import {
   Server,
   Zap,
   LogOut,
+  Settings,
 } from 'lucide-react';
 
 function DashboardApp() {
   const { user, organization, project, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'queues' | 'jobs' | 'workers' | 'dlq'>('dashboard');
+  const [activeTab, setActiveTab] = useState<
+    'dashboard' | 'queues' | 'jobs' | 'workers' | 'dlq' | 'settings'
+  >('dashboard');
   const [selectedQueueId, setSelectedQueueId] = useState<string | null>(null);
 
   // Modal States
@@ -101,6 +106,7 @@ function DashboardApp() {
               { id: 'jobs', label: 'Job Explorer', icon: ListTodo },
               { id: 'workers', label: 'Worker Fleet', icon: Cpu },
               { id: 'dlq', label: 'Dead Letter Queue', icon: AlertTriangle },
+              { id: 'settings', label: 'Organization & Settings', icon: Settings },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -166,12 +172,19 @@ function DashboardApp() {
               Org: {organization?.name || 'Acme Operations'}
             </span>
             <span className="text-gray-600">/</span>
-            <span className="px-2.5 py-1 rounded-full bg-[#4F6EF7]/10 border border-[#4F6EF7]/20 text-[11px] font-mono text-[#4F6EF7]">
-              Proj: {project?.name || 'Production Core'}
-            </span>
+            <ProjectSwitcher onOpenCreateProject={() => setActiveTab('settings')} />
           </div>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setActiveTab('settings')}
+              title="Settings"
+              className={`p-2 rounded-full text-gray-400 hover:text-gray-100 hover:bg-[#141414] transition-colors ${
+                activeTab === 'settings' ? 'text-[#4F6EF7] bg-[#4F6EF7]/10' : ''
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+            </button>
             <button className="p-2 rounded-full text-gray-400 hover:text-gray-100 hover:bg-[#141414] transition-colors relative">
               <Bell className="w-4 h-4" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#4F6EF7]" />
@@ -218,6 +231,15 @@ function DashboardApp() {
 
             {activeTab === 'dlq' && (
               <DeadLetterQueueView projectId={projectId} onToast={addToast} />
+            )}
+
+            {activeTab === 'settings' && (
+              <OrganizationSettingsView
+                onToast={addToast}
+                onSelectProject={() => {
+                  setActiveTab('dashboard');
+                }}
+              />
             )}
           </ErrorBoundary>
         </div>
