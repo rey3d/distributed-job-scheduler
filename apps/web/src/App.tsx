@@ -44,6 +44,8 @@ function DashboardApp() {
   const [isCreateQueueOpen, setIsCreateQueueOpen] = useState(false);
   const [editingQueue, setEditingQueue] = useState<Queue | null>(null);
   const [availableQueues, setAvailableQueues] = useState<Queue[]>([]);
+  const [isEnqueueLoading, setIsEnqueueLoading] = useState(false);
+  const [enqueueError, setEnqueueError] = useState<string | null>(null);
 
   // Toast System State
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -71,15 +73,24 @@ function DashboardApp() {
 
   const projectId = project?.id || '';
 
-  const handleOpenEnqueue = async () => {
+  const fetchQueuesForEnqueue = async () => {
     if (!projectId) return;
+    setIsEnqueueLoading(true);
+    setEnqueueError(null);
     try {
       const qList = await api.getQueues(projectId);
       setAvailableQueues(qList);
-      setIsEnqueueOpen(true);
     } catch (err: any) {
-      addToast('error', 'Failed to load queues', err.message);
+      setEnqueueError(err.message || 'Failed to load queues');
+      setAvailableQueues([]);
+    } finally {
+      setIsEnqueueLoading(false);
     }
+  };
+
+  const handleOpenEnqueue = () => {
+    setIsEnqueueOpen(true);
+    fetchQueuesForEnqueue();
   };
 
   return (
@@ -257,6 +268,13 @@ function DashboardApp() {
       {isEnqueueOpen && (
         <EnqueueJobModal
           queues={availableQueues}
+          loading={isEnqueueLoading}
+          error={enqueueError}
+          onRetryQueues={fetchQueuesForEnqueue}
+          onOpenCreateQueueModal={() => {
+            setIsEnqueueOpen(false);
+            setIsCreateQueueOpen(true);
+          }}
           onClose={() => setIsEnqueueOpen(false)}
           onJobEnqueued={(msg) => addToast('success', 'Job Enqueued', msg)}
         />

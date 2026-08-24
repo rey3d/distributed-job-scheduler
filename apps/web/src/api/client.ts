@@ -111,8 +111,16 @@ export const api = {
     request<ThroughputChartResponse>(`/projects/${projectId}/throughput-chart?hours=${hours}`),
 
   // Queues
-  getQueues: (projectId: string) =>
-    request<Queue[]>(`/projects/${projectId}/queues`),
+  getQueues: async (projectId: string): Promise<Queue[]> => {
+    const res = await request<PaginatedResponse<Queue>>(`/projects/${projectId}/queues`);
+    if (res && Array.isArray(res.data)) {
+      return res.data;
+    }
+    if (Array.isArray(res)) {
+      return res;
+    }
+    return [];
+  },
 
   getQueueStats: (queueId: string) =>
     request<QueueStats>(`/queues/${queueId}/stats`),

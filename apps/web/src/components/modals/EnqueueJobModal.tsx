@@ -1,16 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Queue } from '../../api/types';
 import { api } from '../../api/client';
-import { X, Plus, Zap } from 'lucide-react';
+import { X, Plus, Zap, RefreshCw, Layers } from 'lucide-react';
 
 interface EnqueueJobModalProps {
   queues: Queue[];
+  loading?: boolean;
+  error?: string | null;
+  onRetryQueues?: () => void;
+  onOpenCreateQueueModal?: () => void;
   onClose: () => void;
   onJobEnqueued: (msg: string) => void;
 }
 
-export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({ queues, onClose, onJobEnqueued }) => {
-  const [selectedQueueId, setSelectedQueueId] = useState<string>(queues[0]?.id || '');
+export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
+  queues,
+  loading = false,
+  error: fetchError = null,
+  onRetryQueues,
+  onOpenCreateQueueModal,
+  onClose,
+  onJobEnqueued,
+}) => {
+  const [selectedQueueId, setSelectedQueueId] = useState<string>('');
   const [jobType, setJobType] = useState<string>('billing.charge');
   const [priority, setPriority] = useState<number>(10);
   const [delaySec, setDelaySec] = useState<number>(0);
@@ -18,12 +30,18 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({ queues, onClos
     JSON.stringify({ userId: 'usr_8921', amount: 149.99, currency: 'USD' }, null, 2)
   );
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Array.isArray(queues) && queues.length > 0 && !selectedQueueId) {
+      setSelectedQueueId(queues[0].id);
+    }
+  }, [queues, selectedQueueId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedQueueId) {
-      setError('Please select a queue');
+      setSubmitError('Please select a target queue');
       return;
     }
 
@@ -31,12 +49,12 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({ queues, onClos
     try {
       parsedPayload = JSON.parse(payloadText);
     } catch (_) {
-      setError('Invalid Payload JSON format');
+      setSubmitError('Invalid Payload JSON format');
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
 
     try {
       const job = await api.enqueueJob(selectedQueueId, {
@@ -49,11 +67,13 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({ queues, onClos
       onJobEnqueued(`Enqueued job '${job.type}' (ID: ${job.id.slice(0, 8)})`);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to enqueue job');
+      setSubmitError(err.message || 'Failed to enqueue job');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const activeError = submitError || fetchError;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -70,98 +90,135 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({ queues, onClos
           </button>
         </div>
 
-        {error && (
-          <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono">
-            ⚠️ {error}
+        {activeError && (
+          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono flex items-center justify-between">
+            <span>⚠️ {activeError}</span>
+            {fetchError && onRetryQueues && (
+              <button
+                type="button"
+                onClick={onRetryQueues}
+                className="px-3 py-1 rounded-full bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" /> Retry
+              </button>
+            )}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          {/* Target Queue */}
-          <div>
-            <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Target Queue</label>
-            <select
-              value={selectedQueueId}
-              onChange={(e) => setSelectedQueueId(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
-            >
-              {queues.map((q) => (
-                <option key={q.id} value={q.id}>
-                  {q.name} (P{q.priority})
-                </option>
-              ))}
-            </select>
+        {loading ? (
+          <div className="py-12 text-center text-xs font-mono text-gray-400 space-y-3">
+            <RefreshCw className="w-6 h-6 text-[#4F6EF7] animate-spin mx-auto" />
+            <p>Loading project queues...</p>
           </div>
-
-          {/* Job Type & Priority */}
-          <div className="grid grid-cols-2 gap-4">
+        ) : !loading && (!Array.isArray(queues) || queues.length === 0) ? (
+          <div className="py-8 text-center text-xs font-mono space-y-4">
+            <Layers className="w-8 h-8 text-gray-600 mx-auto" />
             <div>
-              <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Job Type</label>
+              <p className="text-gray-200 font-bold text-sm">No Queues Available</p>
+              <p className="text-gray-500 mt-1">
+                You need at least one configured queue in this project to enqueue jobs.
+              </p>
+            </div>
+            {onOpenCreateQueueModal && (
+              <button
+                type="button"
+                onClick={onOpenCreateQueueModal}
+                className="px-5 py-2.5 rounded-full bg-[#00C48C] hover:bg-[#00C48C]/90 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-[#00C48C]/20"
+              >
+                <Plus className="w-4 h-4" /> Create Queue
+              </button>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+            {/* Target Queue */}
+            <div>
+              <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Target Queue</label>
               <select
-                value={jobType}
-                onChange={(e) => setJobType(e.target.value)}
+                value={selectedQueueId}
+                onChange={(e) => setSelectedQueueId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
               >
-                <option value="billing.charge">billing.charge</option>
-                <option value="email.send">email.send</option>
-                <option value="db.backup">db.backup</option>
-                <option value="custom.task">custom.task</option>
+                {queues.map((q) => (
+                  <option key={q.id} value={q.id}>
+                    {q.name} (P{q.priority} — {q.concurrencyLimit} workers)
+                  </option>
+                ))}
               </select>
             </div>
 
+            {/* Job Type & Priority */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Job Type</label>
+                <select
+                  value={jobType}
+                  onChange={(e) => setJobType(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
+                >
+                  <option value="billing.charge">billing.charge</option>
+                  <option value="email.send">email.send</option>
+                  <option value="data.process">data.process</option>
+                  <option value="payment.process">payment.process</option>
+                  <option value="db.backup">db.backup</option>
+                  <option value="custom.task">custom.task</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Priority</label>
+                <input
+                  type="number"
+                  value={priority}
+                  onChange={(e) => setPriority(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Scheduled Delay */}
             <div>
-              <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Priority</label>
+              <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">
+                Scheduled Delay (Seconds, 0 for immediate)
+              </label>
               <input
                 type="number"
-                value={priority}
-                onChange={(e) => setPriority(Number(e.target.value))}
+                min="0"
+                value={delaySec}
+                onChange={(e) => setDelaySec(Number(e.target.value))}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
               />
             </div>
-          </div>
 
-          {/* Scheduled Delay */}
-          <div>
-            <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">
-              Scheduled Delay (Seconds, 0 for immediate)
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={delaySec}
-              onChange={(e) => setDelaySec(Number(e.target.value))}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
-            />
-          </div>
+            {/* JSON Payload */}
+            <div>
+              <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Payload JSON</label>
+              <textarea
+                rows={4}
+                value={payloadText}
+                onChange={(e) => setPayloadText(e.target.value)}
+                className="w-full p-3.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-gray-200 font-mono text-[11px] focus:border-[#4F6EF7] outline-none"
+              />
+            </div>
 
-          {/* JSON Payload */}
-          <div>
-            <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Payload JSON</label>
-            <textarea
-              rows={4}
-              value={payloadText}
-              onChange={(e) => setPayloadText(e.target.value)}
-              className="w-full p-3.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-gray-200 font-mono text-[11px] focus:border-[#4F6EF7] outline-none"
-            />
-          </div>
-
-          <div className="pt-2 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-medium border border-white/10"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-6 py-2 rounded-full bg-[#4F6EF7] hover:bg-[#4F6EF7]/90 text-white text-xs font-medium flex items-center gap-2 shadow-lg shadow-[#4F6EF7]/20"
-            >
-              <Plus className="w-4 h-4" /> {submitting ? 'Enqueuing...' : 'Enqueue Job'}
-            </button>
-          </div>
-        </form>
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-medium border border-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-6 py-2 rounded-full bg-[#4F6EF7] hover:bg-[#4F6EF7]/90 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-[#4F6EF7]/20"
+              >
+                <Plus className="w-4 h-4" /> {submitting ? 'Enqueuing...' : 'Enqueue Job'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
