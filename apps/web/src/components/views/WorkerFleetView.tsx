@@ -30,6 +30,7 @@ export const WorkerFleetView: React.FC<WorkerFleetViewProps> = ({ projectId, onT
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showStaleWorkers, setShowStaleWorkers] = useState(false);
 
   const fetchWorkers = async (isManual = false) => {
     if (!projectId) {
@@ -58,6 +59,11 @@ export const WorkerFleetView: React.FC<WorkerFleetViewProps> = ({ projectId, onT
     }
   }, [projectId]);
 
+  const visibleWorkers = showStaleWorkers
+    ? workers
+    : workers.filter((worker) => !isStale(worker.lastSeenAt) && worker.status !== 'OFFLINE');
+  const staleWorkerCount = workers.length - visibleWorkers.length;
+
   return (
     <div className="p-8 space-y-6 max-w-7xl w-full mx-auto font-sans">
       {/* View Header */}
@@ -72,14 +78,24 @@ export const WorkerFleetView: React.FC<WorkerFleetViewProps> = ({ projectId, onT
           </p>
         </div>
 
-        <button
-          onClick={() => fetchWorkers(true)}
-          disabled={refreshing}
-          className="px-5 py-2.5 rounded-full bg-[#141414] hover:bg-[#1E1E1E] border border-white/10 text-xs font-medium text-gray-200 flex items-center gap-2"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />{' '}
-          {refreshing ? 'Refreshing...' : 'Refresh Fleet'}
-        </button>
+        <div className="flex items-center gap-2">
+          {staleWorkerCount > 0 && (
+            <button
+              onClick={() => setShowStaleWorkers((current) => !current)}
+              className="px-4 py-2.5 rounded-full bg-[#141414] hover:bg-[#1E1E1E] border border-white/10 text-xs font-medium text-gray-300"
+            >
+              {showStaleWorkers ? 'Hide' : 'Show'} {staleWorkerCount} stale
+            </button>
+          )}
+          <button
+            onClick={() => fetchWorkers(true)}
+            disabled={refreshing}
+            className="px-5 py-2.5 rounded-full bg-[#141414] hover:bg-[#1E1E1E] border border-white/10 text-xs font-medium text-gray-200 flex items-center gap-2"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />{' '}
+            {refreshing ? 'Refreshing...' : 'Refresh Fleet'}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -88,9 +104,9 @@ export const WorkerFleetView: React.FC<WorkerFleetViewProps> = ({ projectId, onT
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono">
           ❌ {error}
         </div>
-      ) : workers.length > 0 ? (
+      ) : visibleWorkers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {workers.map((worker) => {
+          {visibleWorkers.map((worker) => {
             const stale = isStale(worker.lastSeenAt);
             const isOnline = worker.status === 'ONLINE' || worker.status === 'BUSY';
 

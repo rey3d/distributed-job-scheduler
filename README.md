@@ -1,8 +1,22 @@
-# Production-Inspired Distributed Job Scheduling Platform
+# AetherFlow — Distributed Job Scheduling Platform
+
+[![CI](https://github.com/rey3d/distributed-job-scheduler/actions/workflows/ci.yml/badge.svg)](https://github.com/rey3d/distributed-job-scheduler/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js 20+](https://img.shields.io/badge/node-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
 A high-throughput, multi-tenant distributed job scheduling and background processing engine built with Node.js, NestJS, PostgreSQL, Prisma ORM, TypeScript, and React (Vite + TailwindCSS).
 
 Inspired by Sidekiq, BullMQ, and Celery, this platform provides atomic job claiming (`SELECT FOR UPDATE SKIP LOCKED`), configurable concurrency limits, flexible retry policies (fixed, linear, exponential), cron & delayed scheduled jobs, worker heartbeats, crashed worker lock recovery, dead letter queue (DLQ) replaying, and a real-time dark-themed monitoring dashboard.
+
+---
+
+## Design highlights
+
+- **Exactly-once claiming:** PostgreSQL `FOR UPDATE SKIP LOCKED` avoids duplicate job claims across competing workers.
+- **Shared queue limits:** Queue concurrency is enforced inside the atomic claim transaction across the entire fleet.
+- **Failure recovery:** Fixed, linear, and exponential retries; Dead Letter Queue; execution history; heartbeats; and stale-lock reaping.
+- **Three workers by default:** `pnpm dev` starts three independent local worker daemons and displays them in Worker Fleet.
+- **Reviewer evidence:** Swagger/OpenAPI, architecture and ER diagrams, CI, automated tests, and an executable three-worker proof.
 
 ---
 
@@ -55,8 +69,8 @@ latency, throughput, and pause/edit controls.
 
 `pnpm dev` launches three independent worker daemons. Each self-registers with
 a unique worker ID and process ID, and sends liveness heartbeats visible here.
-The older stopped processes are deliberately identified as stale, demonstrating
-worker-health monitoring in addition to the three active workers.
+The UI shows active workers by default and provides an explicit control to
+inspect stale worker history for operational diagnosis.
 
 ![Worker fleet with three online workers](docs/images/worker-fleet.png)
 
@@ -215,3 +229,12 @@ the expected evidence and Docker alternative.
 - 🗄️ **[Entity-Relationship Diagram](docs/er-diagram.md)**: Visual schema model of all domain entities.
 - 📑 **[OpenAPI / Swagger Spec](docs/api-spec.json)**: Exported OpenAPI 3.0 specification covering REST endpoints.
 - 💡 **[Design Decisions](docs/DESIGN_DECISIONS.md)**: Technical rationale, trade-offs, and scaling limits.
+- 🎬 **[90-second demo script](docs/demo-script.md)**: A concise walkthrough for a reviewer video.
+
+## Submission metadata
+
+Suggested GitHub description: **Production-inspired distributed job scheduler
+with atomic PostgreSQL job claiming and multi-worker execution.**
+
+Suggested repository topics: `nestjs`, `react`, `typescript`, `postgresql`,
+`prisma`, `docker`, `job-queue`, `distributed-systems`.
