@@ -103,6 +103,18 @@ export class JobsController {
     return this.jobsService.retryDeadLetterJob(jobId, userOrgId);
   }
 
+  @Post('jobs/:id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a pending or scheduled job' })
+  @ApiResponse({ status: 200, description: 'Job cancelled' })
+  @ApiResponse({ status: 400, description: 'Cannot cancel active or completed job' })
+  async cancelJobPost(
+    @Param('id') jobId: string,
+    @CurrentUser('organizationId') userOrgId: string
+  ) {
+    return this.jobsService.cancelJob(jobId, userOrgId);
+  }
+
   @Delete('jobs/:id')
   @ApiOperation({ summary: 'Cancel a pending or scheduled job' })
   @ApiResponse({ status: 200, description: 'Job cancelled' })

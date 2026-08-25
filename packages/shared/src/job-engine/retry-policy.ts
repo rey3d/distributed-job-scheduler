@@ -92,10 +92,13 @@ export async function handleJobFailure(
     });
 
     // 2. Evaluate Retry Policy
-    const currentAttempt = job.attemptCount;
+    const currentAttempt = job.attemptCount + 1;
     const policy = job.queue.retryPolicy;
 
-    const maxAttempts = policy?.maxAttempts ?? job.maxAttempts;
+    const maxAttempts = Math.min(
+      job.maxAttempts,
+      policy?.maxAttempts ?? job.maxAttempts
+    );
     const strategy = policy?.strategy ?? RetryStrategy.EXPONENTIAL;
     const baseDelaySec = policy?.baseDelaySec ?? 5;
     const maxDelayCapSec = policy?.maxDelayCapSec ?? 3600;
@@ -110,6 +113,7 @@ export async function handleJobFailure(
         where: { id: jobId },
         data: {
           status: nextStatus,
+          attemptCount: currentAttempt,
           scheduledAt,
           lockedByWorkerId: null,
           lockExpiresAt: null,
@@ -140,6 +144,7 @@ export async function handleJobFailure(
         where: { id: jobId },
         data: {
           status: JobStatus.FAILED,
+          attemptCount: currentAttempt,
           finishedAt,
           lockedByWorkerId: null,
           lockExpiresAt: null,

@@ -6,10 +6,12 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "npx vitest run --config vitest.config.ts"
+    "test": "npx vitest run --config vitest.config.ts",
+    "test:multi": "ts-node --transpile-only --project tsconfig.json ../../scripts/run-multi-worker-test.ts"
   },
   "dependencies": {
-    "@job-scheduler/shared": "workspace:*"
+    "@job-scheduler/shared": "workspace:*",
+    "cron-parser": "^4.9.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",

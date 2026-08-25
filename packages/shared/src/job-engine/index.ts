@@ -4,3 +4,4 @@ export * from './atomic-claim';
 export * from './execution-heartbeat';
 export * from './retry-policy';
 export * from './idempotency';
+export * from './scheduler';

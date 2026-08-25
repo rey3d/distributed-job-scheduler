@@ -23,18 +23,21 @@ export class RetryPolicyConfigDto {
 
   @ApiPropertyOptional({ default: 5 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   baseDelaySec?: number = 5;
 
   @ApiPropertyOptional({ default: 3 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   maxAttempts?: number = 3;
 
   @ApiPropertyOptional({ default: 3600 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   maxDelayCapSec?: number = 3600;
@@ -53,11 +56,13 @@ export class CreateQueueDto {
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   priority?: number = 0;
 
   @ApiPropertyOptional({ default: 5 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   concurrencyLimit?: number = 5;

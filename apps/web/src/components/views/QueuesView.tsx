@@ -167,6 +167,7 @@ export const QueuesView: React.FC<QueuesViewProps> = ({
                   <th className="pb-3">Queue Name</th>
                   <th className="pb-3">Priority</th>
                   <th className="pb-3">Concurrency</th>
+                  <th className="pb-3">Retry Policy</th>
                   <th className="pb-3">Success Rate</th>
                   <th className="pb-3">Avg Latency</th>
                   <th className="pb-3">Throughput</th>
@@ -189,6 +190,11 @@ export const QueuesView: React.FC<QueuesViewProps> = ({
                       </td>
                       <td className="py-4 text-gray-300 font-mono">P{q.priority}</td>
                       <td className="py-4 text-gray-300 font-mono">{q.concurrencyLimit} max</td>
+                      <td className="py-4 text-gray-300 font-mono text-[11px]">
+                        {q.retryPolicy
+                          ? `${q.retryPolicy.strategy} · ${q.retryPolicy.maxAttempts}x · ${q.retryPolicy.baseDelaySec}s`
+                          : 'Default'}
+                      </td>
 
                       {/* Success Rate */}
                       <td className="py-4 font-mono">

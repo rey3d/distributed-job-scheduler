@@ -46,7 +46,10 @@ export async function enqueueJobWithIdempotency(
         priority: options?.priority ?? 0,
         maxAttempts: options?.maxAttempts ?? 3,
         scheduledAt: options?.scheduledAt || null,
-        status: options?.scheduledAt && options.scheduledAt > new Date() ? JobStatus.SCHEDULED : JobStatus.QUEUED,
+        // A caller supplying a schedule explicitly creates a scheduled record,
+        // even if the timestamp is already due. The scheduler performs the
+        // SCHEDULED -> QUEUED transition, preserving one lifecycle path.
+        status: options?.scheduledAt ? JobStatus.SCHEDULED : JobStatus.QUEUED,
       },
     });
 

@@ -6,6 +6,7 @@ import {
   deregisterWorkerNode,
 } from './identity';
 import { WorkerPoller } from './poller';
+import { dispatchDueCronJobs, promoteDueScheduledJobs } from './scheduler';
 
 async function bootstrap() {
   console.log(`🚀 [Worker Service] Starting daemon initialization...`);
@@ -56,6 +57,22 @@ async function bootstrap() {
     }
   }, 15000);
 
+  // 4b. Promote due delayed/retry jobs and dispatch recurring cron definitions
+  const schedulerInterval = setInterval(async () => {
+    try {
+      const promoted = await promoteDueScheduledJobs();
+      if (promoted > 0) {
+        console.log(`📅 [Scheduler] Promoted ${promoted} due SCHEDULED job(s) to QUEUED.`);
+      }
+      const dispatched = await dispatchDueCronJobs();
+      if (dispatched > 0) {
+        console.log(`📅 [Scheduler] Dispatched ${dispatched} recurring cron job(s).`);
+      }
+    } catch (err: any) {
+      console.error(`⚠️ [Scheduler] Tick error: ${err.message}`);
+    }
+  }, 1000);
+
   // 5. Initialize and Start Polling Engine
   const poller = new WorkerPoller({
     workerId: identity.id,
@@ -80,6 +97,7 @@ async function bootstrap() {
     // Stop heartbeat touch & reaper loops
     clearInterval(heartbeatInterval);
     clearInterval(reaperInterval);
+    clearInterval(schedulerInterval);
 
     // Stop Poller from claiming new jobs & mark worker DRAINING
     await poller.stop();

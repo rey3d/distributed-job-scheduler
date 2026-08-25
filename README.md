@@ -41,6 +41,13 @@ Ensure you have the following installed locally:
 - **pnpm**: `v9+` (`npm install -g pnpm`)
 - **Docker & Docker Compose**: For local stack execution
 
+## 🔐 Configuration
+
+Copy `.env.example` to `.env` and replace the example values before running a
+production-like stack. `JWT_SECRET` and `POSTGRES_PASSWORD` are mandatory for
+Docker deployments; `CORS_ORIGIN` must name the dashboard origin(s), separated
+by commas when more than one is used.
+
 ---
 
 ## 🚀 Multi-Worker Deployment & Quick Start
@@ -92,11 +99,11 @@ From the monorepo root:
 pnpm dev
 ```
 
-This launches:
+This launches one API, one web dashboard, and **three independent worker processes**:
 - 🌐 **Web Monitoring Dashboard**: `http://localhost:3000`
 - 🚀 **NestJS API Service**: `http://localhost:3001`
 - 📚 **Swagger API Docs**: `http://localhost:3001/api/docs`
-- ⚡ **Background Worker Daemon**: Poller & Handler Engine
+- ⚡ **Background Worker Daemons (3)**: Poller & Handler Engine; visible in Worker Fleet
 
 ---
 
@@ -127,9 +134,15 @@ pnpm test
 ### Run Multi-Instance Concurrency Proof (3 Independent Worker Daemon Processes)
 
 ```bash
-# Spawns 3 concurrent Node worker processes polling a shared queue of 50 jobs
+# Requires a running PostgreSQL instance and DATABASE_URL in .env.
+# Spawns 3 OS worker processes polling one shared queue of 50 jobs.
 pnpm --filter @job-scheduler/worker test:multi
 ```
+
+The command exits non-zero unless every job completes exactly once and at least
+two distinct worker instances process the workload. See
+[`docs/multi-worker-verification.md`](docs/multi-worker-verification.md) for
+the expected evidence and Docker alternative.
 
 ---
 

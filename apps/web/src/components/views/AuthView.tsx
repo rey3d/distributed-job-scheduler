@@ -83,7 +83,15 @@ export const AuthView: React.FC = () => {
         await login(email.trim(), password);
       }
     } catch (err: any) {
-      setGlobalError(err.message || 'Authentication failed');
+      const message = err.message || 'Authentication failed';
+      if (message.toLowerCase().includes('already exists')) {
+        setIsRegistering(false);
+        setGlobalError('This email is already registered. Sign in with your password.');
+      } else if (message.toLowerCase().includes('invalid credentials')) {
+        setGlobalError('Invalid email or password. Use Sign in if you already have an account.');
+      } else {
+        setGlobalError(message);
+      }
     } finally {
       setSubmitting(false);
     }

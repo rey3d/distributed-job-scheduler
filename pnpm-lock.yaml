@@ -145,6 +145,9 @@ importers:
       '@job-scheduler/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      cron-parser:
+        specifier: ^4.9.0
+        version: 4.9.0
     devDependencies:
       '@types/node':
         specifier: ^20.12.12

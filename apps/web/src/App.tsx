@@ -29,6 +29,7 @@ import {
   Zap,
   LogOut,
   Settings,
+  Menu,
 } from 'lucide-react';
 
 function DashboardApp() {
@@ -46,6 +47,7 @@ function DashboardApp() {
   const [availableQueues, setAvailableQueues] = useState<Queue[]>([]);
   const [isEnqueueLoading, setIsEnqueueLoading] = useState(false);
   const [enqueueError, setEnqueueError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Toast System State
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -95,8 +97,20 @@ function DashboardApp() {
 
   return (
     <div className="flex h-screen bg-[#0A0A0A] text-gray-200 overflow-hidden font-sans">
+      {sidebarOpen && (
+        <button
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          aria-label="Close navigation"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Left Sidebar */}
-      <aside className="w-64 bg-[#0D0D0D] border-r border-white/10 flex flex-col justify-between p-4 shrink-0">
+      <aside
+        className={`${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0 fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#0D0D0D] border-r border-white/10 flex flex-col justify-between p-4 shrink-0 transition-transform`}
+      >
         <div>
           {/* Logo / Brand Header */}
           <div className="flex items-center gap-3 px-3 py-4 mb-6">
@@ -124,7 +138,10 @@ function DashboardApp() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id as any)}
+                  onClick={() => {
+                    setActiveTab(item.id as any);
+                    setSidebarOpen(false);
+                  }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-full text-xs font-medium transition-all duration-200 ${
                     isActive
                       ? 'bg-[#4F6EF7] text-white shadow-lg shadow-[#4F6EF7]/25 font-bold'
@@ -155,10 +172,10 @@ function DashboardApp() {
           <div className="p-3 rounded-2xl bg-[#141414] border border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-full bg-[#4F6EF7]/20 border border-[#4F6EF7]/30 flex items-center justify-center font-bold text-xs text-[#4F6EF7]">
-                {user.name ? user.name[0] : 'U'}
+                {user.name ? user.name[0] : user.email?.[0]?.toUpperCase() || 'U'}
               </div>
               <div className="text-xs truncate max-w-[110px]">
-                <p className="font-semibold text-gray-200 truncate">{user.name}</p>
+                <p className="font-semibold text-gray-200 truncate">{user.name || user.email}</p>
                 <p className="text-gray-500 text-[10px] truncate">{user.email}</p>
               </div>
             </div>
@@ -177,8 +194,15 @@ function DashboardApp() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-y-auto">
         {/* Top Header */}
-        <header className="h-16 border-b border-white/10 px-8 flex items-center justify-between bg-[#0A0A0A]/80 backdrop-blur-md sticky top-0 z-10">
+        <header className="h-16 border-b border-white/10 px-4 sm:px-8 flex items-center justify-between bg-[#0A0A0A]/80 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-3">
+            <button
+              className="md:hidden p-2 rounded-full text-gray-400 hover:text-white hover:bg-[#141414]"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open navigation"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
             <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-mono text-gray-300">
               Org: {organization?.name || 'Acme Operations'}
             </span>

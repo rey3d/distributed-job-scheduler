@@ -74,6 +74,8 @@ sequenceDiagram
     API-->>Client: 201 Created { job: { id, status: 'QUEUED' } }
 
     loop Worker Polling Loop (Interval: 200ms)
+        Worker->>Engine: promoteDueScheduledJobs()
+        Engine->>DB: UPDATE jobs SET status='QUEUED' WHERE status='SCHEDULED' AND scheduledAt<=NOW()
         Worker->>Engine: claimNextJob(queueId, workerId)
         Engine->>DB: UPDATE jobs SET status='CLAIMED', lockExpiresAt=NOW()+30s WHERE id = (SELECT id FROM jobs WHERE queueId=:id AND status='QUEUED' AND paused=false ORDER BY priority DESC, createdAt ASC FOR UPDATE OF jobs SKIP LOCKED LIMIT 1)
         DB-->>Worker: Claimed Job Row (or null if empty/paused)

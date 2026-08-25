@@ -1,7 +1,6 @@
 import {
   prisma,
   claimNextJob,
-  JobStatus,
   WorkerStatus,
 } from '@job-scheduler/shared';
 import { updateWorkerStatus } from './identity';
@@ -88,6 +87,7 @@ export class WorkerPoller {
 
     const queues = await prisma.queue.findMany({
       where: whereClause,
+      orderBy: { priority: 'desc' },
       select: {
         id: true,
         name: true,
@@ -105,20 +105,8 @@ export class WorkerPoller {
         break;
       }
 
-      // Check Queue Concurrency Limit in Database
-      const currentRunningInQueue = await prisma.job.count({
-        where: {
-          queueId: queue.id,
-          status: JobStatus.RUNNING,
-        },
-      });
-
-      if (currentRunningInQueue >= queue.concurrencyLimit) {
-        // Queue level concurrency limit reached, skip this queue in current tick
-        continue;
-      }
-
-      // Attempt atomic job claim using SKIP LOCKED
+      // The claim query locks the queue row and atomically enforces its global
+      // concurrency limit across every worker process.
       const claimedJob = await claimNextJob(queue.id, this.workerId);
 
       if (claimedJob) {

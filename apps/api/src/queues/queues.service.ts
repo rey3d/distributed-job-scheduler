@@ -71,7 +71,36 @@ export class QueuesService {
   }
 
   async update(queueId: string, userOrgId: string, dto: UpdateQueueDto) {
-    await this.verifyQueueAccess(queueId, userOrgId);
+    const queue = await this.verifyQueueAccess(queueId, userOrgId);
+
+    let retryPolicyId = dto.retryPolicyId ?? queue.retryPolicyId;
+
+    if (dto.retryPolicy) {
+      if (queue.retryPolicyId) {
+        await prisma.retryPolicy.update({
+          where: { id: queue.retryPolicyId },
+          data: {
+            name: dto.retryPolicy.name || queue.retryPolicy?.name || `${queue.name}-policy`,
+            strategy: dto.retryPolicy.strategy,
+            baseDelaySec: dto.retryPolicy.baseDelaySec ?? 5,
+            maxAttempts: dto.retryPolicy.maxAttempts ?? 3,
+            maxDelayCapSec: dto.retryPolicy.maxDelayCapSec ?? 3600,
+          },
+        });
+        retryPolicyId = queue.retryPolicyId;
+      } else {
+        const policy = await prisma.retryPolicy.create({
+          data: {
+            name: dto.retryPolicy.name || `${queue.name}-policy`,
+            strategy: dto.retryPolicy.strategy,
+            baseDelaySec: dto.retryPolicy.baseDelaySec ?? 5,
+            maxAttempts: dto.retryPolicy.maxAttempts ?? 3,
+            maxDelayCapSec: dto.retryPolicy.maxDelayCapSec ?? 3600,
+          },
+        });
+        retryPolicyId = policy.id;
+      }
+    }
 
     return prisma.queue.update({
       where: { id: queueId },
@@ -79,7 +108,7 @@ export class QueuesService {
         description: dto.description,
         priority: dto.priority,
         concurrencyLimit: dto.concurrencyLimit,
-        retryPolicyId: dto.retryPolicyId,
+        retryPolicyId: retryPolicyId || null,
         updatedAt: new Date(),
       },
       include: {

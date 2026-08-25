@@ -62,7 +62,8 @@ This document synthesizes the core technical design choices, concurrency guarant
 | :--- | :--- | :--- |
 | **Queue Pause / Resume** | ✅ Implemented | Supported natively at queue level (`paused = true`). Atomic claiming queries join `queues` and filter `q.paused = false`. |
 | **Idempotency Deduplication** | ✅ Implemented | Supported natively via `idempotencyKey` and PostgreSQL unique index. |
-| **Cron / Delayed Jobs** | ✅ Implemented | Supported via `scheduledAt` and `cronExpression` parsing using `cron-parser`. |
+| **Cron / Delayed Jobs** | ✅ Implemented | One-shot delay via `delaySec`/`scheduledAt`. Recurring jobs live in `scheduled_jobs` and are dispatched by the worker scheduler with `FOR UPDATE SKIP LOCKED`. Due `SCHEDULED` jobs are promoted to `QUEUED` before claim. |
+| **Role-based access** | ⏸️ Partial | `UserRole` (`OWNER`, `ADMIN`, `MEMBER`) exists on the user model; API authorization is currently organization-scoped JWT rather than per-role permission matrix. |
 | **Multi-Instance Concurrency** | ✅ Implemented | Verified across 3 concurrent worker processes with 0 duplicates. |
 | **Workflow Dependency Graphs (DAGs)** | ⏸️ Scope Decision | Left out to focus on rock-solid single-job atomic scheduling, retries, and monitoring. Schema can be extended with a `parentJobId` or `JobDependency` table. |
 | **Redis / Distributed Lock Service** | ⏸️ Scope Decision | Chose native PostgreSQL `FOR UPDATE SKIP LOCKED` to minimize infrastructure complexity while maintaining 100% ACID correctness. |

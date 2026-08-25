@@ -180,6 +180,18 @@ async function runMultiInstanceConcurrencyTest() {
 
   const duplicateExecutionsCount = Object.values(executionCountsPerJob).filter((c) => c > 1).length;
   const distinctWorkerCount = Object.keys(workerDistribution).length;
+  const workerIds = Object.keys(workerDistribution).filter(Boolean);
+  const workers = await prisma.worker.findMany({
+    where: { id: { in: workerIds } },
+    select: { id: true, processId: true },
+  });
+  const launchedProcessIds = new Set(workerProcesses.map((worker) => worker.pid).filter(Boolean));
+  const launchedWorkerIds = new Set(
+    workers
+      .filter((worker) => launchedProcessIds.has(worker.processId))
+      .map((worker) => worker.id)
+  );
+  const launchedWorkerCount = launchedWorkerIds.size;
 
   console.log(`================================================================`);
   console.log(`📊 [FINAL MULTI-INSTANCE VERIFICATION RESULTS]`);
@@ -189,7 +201,8 @@ async function runMultiInstanceConcurrencyTest() {
   console.log(` ✔️ Dead Letter Queue Entries:   ${finalDlqCount}`);
   console.log(` ✔️ Total Execution Records:    ${executions.length}`);
   console.log(` ✔️ Duplicate Executions:        ${duplicateExecutionsCount} (Must be 0)`);
-  console.log(` ✔️ Active Worker Instances:     ${distinctWorkerCount} workers processed jobs`);
+  console.log(` ✔️ All Worker Instances Seen:   ${distinctWorkerCount} workers processed jobs`);
+  console.log(` ✔️ Launched Worker Instances:   ${launchedWorkerCount} of ${WORKER_COUNT} processed jobs`);
   console.log(`----------------------------------------------------------------`);
   console.log(` 🏆 Workload Distribution across Workers:`);
   Object.entries(workerDistribution).forEach(([wId, count]) => {
@@ -197,11 +210,17 @@ async function runMultiInstanceConcurrencyTest() {
   });
   console.log(`================================================================\n`);
 
-  if (finalCompletedCount === JOB_COUNT && duplicateExecutionsCount === 0) {
-    console.log(`🎉 [SUCCESS] 100% Exact Execution! All 50 jobs completed exactly once with 0 duplicate claims across 3 concurrent workers.`);
+  if (
+    finalCompletedCount === JOB_COUNT &&
+    duplicateExecutionsCount === 0 &&
+    launchedWorkerCount >= 2
+  ) {
+    console.log(`🎉 [SUCCESS] 100% Exact Execution! All 50 jobs completed exactly once with 0 duplicate claims across ${launchedWorkerCount} launched concurrent workers.`);
     process.exit(0);
   } else {
-    console.error(`❌ [FAILURE] Verification failed. Completed: ${finalCompletedCount}/${JOB_COUNT}, Duplicates: ${duplicateExecutionsCount}`);
+    console.error(
+      `❌ [FAILURE] Verification failed. Completed: ${finalCompletedCount}/${JOB_COUNT}, Duplicates: ${duplicateExecutionsCount}, Launched workers: ${launchedWorkerCount} (need at least 2)`
+    );
     process.exit(1);
   }
 }

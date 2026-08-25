@@ -146,13 +146,68 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ jobId, onClose, 
                     Execution Output / Error
                   </span>
                   <pre className="p-4 rounded-2xl bg-[#0A0A0A] border border-white/5 text-[11px] font-mono text-gray-300 overflow-x-auto max-h-40">
-                    {job.error
-                      ? JSON.stringify(job.error, null, 2)
-                      : job.result
-                      ? JSON.stringify(job.result, null, 2)
-                      : '// No output logged yet'}
+                    {(() => {
+                      const lastExec = job.executions?.[job.executions.length - 1];
+                      const output = lastExec?.error || lastExec?.result || job.error || job.result;
+                      return output
+                        ? JSON.stringify(output, null, 2)
+                        : '// No output logged yet';
+                    })()}
                   </pre>
                 </div>
+              </div>
+
+              {/* Retry history / execution metrics */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  Retry History & Execution Metrics
+                </span>
+                {job.executions && job.executions.length > 0 ? (
+                  <div className="overflow-x-auto rounded-2xl border border-white/5">
+                    <table className="w-full text-left text-[11px] font-mono">
+                      <thead>
+                        <tr className="text-gray-500 uppercase border-b border-white/10">
+                          <th className="px-3 py-2">Attempt</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Worker</th>
+                          <th className="px-3 py-2">Duration</th>
+                          <th className="px-3 py-2">Started</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {job.executions.map((ex) => (
+                          <tr key={ex.id}>
+                            <td className="px-3 py-2 text-gray-200">#{ex.attempt}</td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={
+                                  ex.status === 'SUCCESS'
+                                    ? 'text-[#00C48C]'
+                                    : ex.status === 'FAILED'
+                                    ? 'text-rose-400'
+                                    : 'text-amber-400'
+                                }
+                              >
+                                {ex.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-400 truncate max-w-[140px]">
+                              {ex.worker?.name || ex.workerId?.slice(0, 8) || '—'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-300">
+                              {ex.durationMs != null ? `${ex.durationMs} ms` : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-500">
+                              {new Date(ex.startedAt).toLocaleTimeString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 font-mono">No execution attempts recorded yet.</p>
+                )}
               </div>
 
               {/* Execution Audit Log Timeline */}

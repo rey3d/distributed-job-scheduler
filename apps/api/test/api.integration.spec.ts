@@ -170,6 +170,21 @@ describe('NestJS REST API Integration Test Suite (Supertest)', () => {
       jobIdA = res.body.job.id;
     });
 
+    it('enqueues a delayed job as SCHEDULED via delaySec', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/queues/${queueAId}/jobs`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          type: 'email.send',
+          payload: { recipient: 'later@acme.com', template: 'reminder' },
+          delaySec: 120,
+        })
+        .expect(201);
+
+      expect(res.body.job.status).toBe('SCHEDULED');
+      expect(res.body.job.scheduledAt).toBeDefined();
+    });
+
     it('inspects full job details via GET /jobs/:id', async () => {
       const res = await request(app.getHttpServer())
         .get(`/jobs/${jobIdA}`)

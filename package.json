@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k -p \"[{name}]\" -c \"cyan,yellow,blue\" \"pnpm --filter @job-scheduler/api dev\" \"pnpm --filter @job-scheduler/worker dev\" \"pnpm --filter @job-scheduler/web dev\"",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"api,worker-1,worker-2,worker-3,web\" -c \"cyan,yellow,magenta,green,blue\" \"pnpm --filter @job-scheduler/api dev\" \"pnpm --filter @job-scheduler/worker dev\" \"pnpm --filter @job-scheduler/worker dev\" \"pnpm --filter @job-scheduler/worker dev\" \"pnpm --filter @job-scheduler/web dev\"",
     "build": "pnpm --filter @job-scheduler/shared build && pnpm --filter @job-scheduler/api build && pnpm --filter @job-scheduler/worker build && pnpm --filter @job-scheduler/web build",
     "db:generate": "pnpm --filter @job-scheduler/shared db:generate",
     "db:push": "pnpm --filter @job-scheduler/shared db:push",
     "db:migrate": "pnpm --filter @job-scheduler/shared db:migrate",
     "db:studio": "pnpm --filter @job-scheduler/shared db:studio",
-    "test": "pnpm --filter @job-scheduler/api test && pnpm --filter @job-scheduler/worker test"
+    "test": "pnpm --filter @job-scheduler/shared test && pnpm --filter @job-scheduler/api test && pnpm --filter @job-scheduler/worker test"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

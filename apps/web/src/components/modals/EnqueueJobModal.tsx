@@ -13,6 +13,8 @@ interface EnqueueJobModalProps {
   onJobEnqueued: (msg: string) => void;
 }
 
+type EnqueueMode = 'immediate' | 'delayed' | 'cron' | 'batch';
+
 export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
   queues,
   loading = false,
@@ -22,10 +24,15 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
   onClose,
   onJobEnqueued,
 }) => {
+  const [mode, setMode] = useState<EnqueueMode>('immediate');
   const [selectedQueueId, setSelectedQueueId] = useState<string>('');
   const [jobType, setJobType] = useState<string>('billing.charge');
-  const [priority, setPriority] = useState<number>(10);
-  const [delaySec, setDelaySec] = useState<number>(0);
+  const [priority, setPriority] = useState('10');
+  const [delaySec, setDelaySec] = useState('30');
+  const [cronExpression, setCronExpression] = useState<string>('*/5 * * * *');
+  const [scheduleName, setScheduleName] = useState<string>('Recurring job');
+  const [batchCount, setBatchCount] = useState('5');
+  const [maxAttempts, setMaxAttempts] = useState('3');
   const [payloadText, setPayloadText] = useState<string>(
     JSON.stringify({ userId: 'usr_8921', amount: 149.99, currency: 'USD' }, null, 2)
   );
@@ -45,6 +52,23 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
       return;
     }
 
+    const priorityValue = Number(priority);
+    const maxAttemptsValue = Number(maxAttempts);
+    const delaySecValue = Number(delaySec);
+    const batchCountValue = Number(batchCount);
+
+    if (
+      !priority.trim() ||
+      !Number.isInteger(priorityValue) ||
+      !Number.isInteger(maxAttemptsValue) ||
+      maxAttemptsValue < 1 ||
+      (mode === 'delayed' && (!Number.isInteger(delaySecValue) || delaySecValue < 1)) ||
+      (mode === 'batch' && (!Number.isInteger(batchCountValue) || batchCountValue < 1 || batchCountValue > 500))
+    ) {
+      setSubmitError('Enter valid values for all numeric fields');
+      return;
+    }
+
     let parsedPayload = {};
     try {
       parsedPayload = JSON.parse(payloadText);
@@ -57,17 +81,39 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
     setSubmitError(null);
 
     try {
-      const job = await api.enqueueJob(selectedQueueId, {
-        type: jobType,
-        payload: parsedPayload,
-        priority,
-        delaySec,
-      });
-
-      const jobId = job?.id ? job.id.slice(0, 8) : 'submitted';
-      const typeStr = job?.type || jobType;
-
-      onJobEnqueued(`Enqueued job '${typeStr}' (ID: ${jobId})`);
+      if (mode === 'cron') {
+        await api.enqueueScheduledJob(selectedQueueId, {
+          name: scheduleName || `${jobType} schedule`,
+          jobType,
+          payload: parsedPayload,
+          cronExpression,
+        });
+        onJobEnqueued(`Created recurring cron job '${jobType}' (${cronExpression})`);
+      } else if (mode === 'batch') {
+        const count = batchCountValue;
+        const jobs = Array.from({ length: count }, () => ({
+          type: jobType,
+          payload: parsedPayload,
+          priority: priorityValue,
+        }));
+        const result = await api.enqueueBatchJobs(selectedQueueId, { jobs });
+        onJobEnqueued(`Enqueued batch of ${result.totalJobs || count} '${jobType}' jobs`);
+      } else {
+        const job = await api.enqueueJob(selectedQueueId, {
+          type: jobType,
+          payload: parsedPayload,
+          priority: priorityValue,
+          delaySec: mode === 'delayed' ? delaySecValue : 0,
+          maxAttempts: maxAttemptsValue,
+        });
+        const jobId = job?.id ? job.id.slice(0, 8) : 'submitted';
+        const typeStr = job?.type || jobType;
+        onJobEnqueued(
+          mode === 'delayed'
+            ? `Scheduled '${typeStr}' (ID: ${jobId}) in ${delaySecValue}s`
+            : `Enqueued job '${typeStr}' (ID: ${jobId})`
+        );
+      }
       onClose();
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to enqueue job');
@@ -80,7 +126,7 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#141414] border border-white/10 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
+      <div className="bg-[#141414] border border-white/10 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-[#4F6EF7]/20 border border-[#4F6EF7]/30 flex items-center justify-center">
@@ -134,7 +180,26 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-            {/* Target Queue */}
+            <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-[#0A0A0A] border border-white/10">
+              {([
+                ['immediate', 'Now'],
+                ['delayed', 'Delayed'],
+                ['cron', 'Cron'],
+                ['batch', 'Batch'],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMode(id)}
+                  className={`py-2 rounded-xl text-[11px] font-bold ${
+                    mode === id ? 'bg-[#4F6EF7] text-white' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div>
               <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Target Queue</label>
               <select
@@ -150,7 +215,6 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
               </select>
             </div>
 
-            {/* Job Type & Priority */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Job Type</label>
@@ -173,27 +237,80 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
                 <input
                   type="number"
                   value={priority}
-                  onChange={(e) => setPriority(Number(e.target.value))}
+                  onChange={(e) => setPriority(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
                 />
               </div>
             </div>
 
-            {/* Scheduled Delay */}
             <div>
-              <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">
-                Scheduled Delay (Seconds, 0 for immediate)
-              </label>
+              <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Max Attempts</label>
               <input
                 type="number"
-                min="0"
-                value={delaySec}
-                onChange={(e) => setDelaySec(Number(e.target.value))}
+                min="1"
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
               />
+              <p className="text-[10px] text-gray-500 mt-1 font-mono">
+                Use 1 plus simulateFailure:true to send a job straight to the Dead Letter Queue.
+              </p>
             </div>
 
-            {/* JSON Payload */}
+            {mode === 'delayed' && (
+              <div>
+                <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">
+                  Delay (seconds)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={delaySec}
+                  onChange={(e) => setDelaySec(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
+                />
+              </div>
+            )}
+
+            {mode === 'cron' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Schedule name</label>
+                  <input
+                    type="text"
+                    value={scheduleName}
+                    onChange={(e) => setScheduleName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Cron expression</label>
+                  <input
+                    type="text"
+                    value={cronExpression}
+                    onChange={(e) => setCronExpression(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {mode === 'batch' && (
+              <div>
+                <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">
+                  Batch size (1–500)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={batchCount}
+                  onChange={(e) => setBatchCount(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0A0A] border border-white/10 text-white font-mono focus:border-[#4F6EF7] outline-none"
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-gray-400 font-mono text-[11px] uppercase mb-1">Payload JSON</label>
               <textarea
@@ -217,7 +334,7 @@ export const EnqueueJobModal: React.FC<EnqueueJobModalProps> = ({
                 disabled={submitting}
                 className="px-6 py-2 rounded-full bg-[#4F6EF7] hover:bg-[#4F6EF7]/90 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-[#4F6EF7]/20"
               >
-                <Plus className="w-4 h-4" /> {submitting ? 'Enqueuing...' : 'Enqueue Job'}
+                <Plus className="w-4 h-4" /> {submitting ? 'Submitting...' : 'Submit'}
               </button>
             </div>
           </form>

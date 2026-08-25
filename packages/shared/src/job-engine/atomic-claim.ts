@@ -32,8 +32,16 @@ export async function claimNextJob(
           AND q.paused = false
           AND j.status = 'QUEUED'::"JobStatus"
           AND (j."scheduledAt" IS NULL OR j."scheduledAt" <= NOW())
+          -- The queue row is locked below. Count claimed and running work while
+          -- it is locked so the queue concurrency limit holds across workers.
+          AND (
+            SELECT COUNT(*)
+            FROM jobs active_jobs
+            WHERE active_jobs."queueId" = j."queueId"
+              AND active_jobs.status IN ('CLAIMED'::"JobStatus", 'RUNNING'::"JobStatus")
+          ) < q."concurrencyLimit"
         ORDER BY j.priority DESC, j."createdAt" ASC
-        FOR UPDATE OF j SKIP LOCKED
+        FOR UPDATE OF j, q SKIP LOCKED
         LIMIT 1
       )
       RETURNING *;

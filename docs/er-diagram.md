@@ -10,25 +10,21 @@ This document details the PostgreSQL schema for the **Distributed Job Scheduling
 erDiagram
     Organization ||--o{ User : "has members"
     Organization ||--o{ Project : "owns projects"
-
     Project ||--o{ Queue : "contains queues"
-    Project ||--o{ Tag : "owns tags"
-
-    Queue }|--|| RetryPolicy : "uses retry strategy"
+    Queue }o--o| RetryPolicy : "uses retry strategy"
     Queue ||--o{ Job : "holds jobs"
+    Queue ||--o{ ScheduledJob : "defines cron or delayed runs"
+    Queue ||--o{ Batch : "groups batch submissions"
     Queue ||--o{ DeadLetterJob : "holds DLQ entries"
-
+    Batch ||--o{ Job : "contains jobs"
     Job ||--o{ JobExecution : "records execution history"
     Job ||--o{ JobLog : "generates audit logs"
     Job ||--o{ WorkerHeartbeat : "currently processing"
-    Job }|--o| Worker : "locked by worker"
-    Job }|--o| DeadLetterJob : "original job"
-
+    Job }o--o| Worker : "locked by worker"
+    Job ||--o| DeadLetterJob : "original job"
+    JobExecution ||--o{ JobLog : "attempt logs"
     Worker ||--o{ WorkerHeartbeat : "sends heartbeats"
     Worker ||--o{ JobExecution : "executes jobs"
-
-    Job ||--o{ _JobToTag : "tagged with"
-    Tag ||--o{ _JobToTag : "applies to"
 
     Organization {
         uuid id PK
@@ -42,7 +38,7 @@ erDiagram
         uuid id PK
         string email UK
         string passwordHash
-        string role
+        enum role "OWNER | ADMIN | MEMBER"
         uuid organizationId FK
         datetime createdAt
         datetime updatedAt
@@ -52,7 +48,7 @@ erDiagram
         uuid id PK
         uuid organizationId FK
         string name
-        string slug UK
+        string slug
         datetime createdAt
         datetime updatedAt
     }
@@ -60,12 +56,12 @@ erDiagram
     Queue {
         uuid id PK
         uuid projectId FK
+        uuid retryPolicyId FK
         string name
         string description
         int priority
         int concurrencyLimit
         boolean paused
-        uuid retryPolicyId FK
         datetime createdAt
         datetime updatedAt
     }
@@ -84,6 +80,7 @@ erDiagram
     Job {
         uuid id PK
         uuid queueId FK
+        uuid batchId FK
         string type
         enum status "QUEUED | SCHEDULED | CLAIMED | RUNNING | COMPLETED | FAILED | CANCELLED"
         int priority
@@ -117,10 +114,30 @@ erDiagram
     JobLog {
         uuid id PK
         uuid jobId FK
-        enum level "INFO | WARN | ERROR"
+        uuid executionId FK
+        enum level "INFO | WARN | ERROR | DEBUG"
         string message
         json meta
         datetime timestamp
+    }
+
+    ScheduledJob {
+        uuid id PK
+        uuid queueId FK
+        string name
+        string jobType
+        json payload
+        string cronExpression
+        datetime nextRunAt
+        datetime lastRunAt
+        boolean enabled
+    }
+
+    Batch {
+        uuid id PK
+        uuid queueId FK
+        int totalJobs
+        datetime createdAt
     }
 
     Worker {
@@ -129,16 +146,16 @@ erDiagram
         string hostname
         int processId
         enum status "ONLINE | BUSY | DRAINING | OFFLINE"
+        int concurrencyLimit
+        int activeJobsCount
         datetime lastSeenAt
-        datetime createdAt
-        datetime updatedAt
     }
 
     WorkerHeartbeat {
         uuid id PK
         uuid workerId FK
         uuid currentJobId FK
-        json systemMetrics
+        json metrics
         datetime timestamp
     }
 
@@ -150,27 +167,33 @@ erDiagram
         json lastError
         int totalAttempts
         json payload
-        enum status "UNRESOLVED | RESOLVED | DISCARDED"
-        datetime createdAt
-    }
-
-    Tag {
-        uuid id PK
-        uuid projectId FK
-        string name
-        string color
+        enum status "UNRESOLVED | RETRIED | DISCARDED"
     }
 ```
 
 ---
 
-## 2. Schema Design Evolution & Key Choices
+## 2. Keys, Indexes, Cascades, and Performance
 
-1. **Multi-Tenant Isolation**:
-   - `Organization` sits at the top of the hierarchy. All data accesses (`User`, `Project`, `Queue`, `Job`) enforce strict tenant scoping (`organizationId`) at the API and database levels.
-2. **Idempotency Key Deduplication**:
-   - The `idempotencyKey` field on `Job` has a database-level `UNIQUE` constraint, allowing callers to safely retry enqueuing operations without risking duplicate job records.
-3. **Atomic Claiming Indexing**:
-   - High-throughput composite index on `Job`: `(queueId, status, priority DESC, createdAt ASC)` ensures `SELECT FOR UPDATE SKIP LOCKED` queries execute in sub-millisecond time.
-4. **Execution Audit & Logs**:
-   - Distinct separation between immutable execution records (`JobExecution`) and event audit logs (`JobLog`), preserving diagnostic state for every attempt even when jobs are retried or moved to the Dead Letter Queue.
+1. **Primary keys**: Every entity uses a UUID primary key (`@default(uuid())`) so workers, APIs, and the dashboard can share identifiers without a central sequence.
+2. **Foreign keys & cascading**:
+   - `Organization → User/Project` cascade delete (tenant wipe).
+   - `Project → Queue → Job/ScheduledJob/Batch/DLQ` cascade delete.
+   - `RetryPolicy` uses `onDelete: SetNull` on queues so policy rows can be reused.
+   - `Worker` locks on jobs use `onDelete: SetNull` so worker deregistration does not delete jobs.
+3. **Normalization**: Retry math lives in `RetryPolicy` (3NF) rather than duplicating strategy fields on every job. Execution attempts are a child table (`JobExecution`) instead of mutating a single job row. Recurring definitions are `ScheduledJob`; one-shot delayed jobs use `Job.scheduledAt`.
+4. **Hot-path indexes**:
+   - `idx_jobs_claim_hotpath` `(queueId, status, scheduledAt, priority DESC, createdAt ASC)` for `FOR UPDATE SKIP LOCKED`.
+   - `idx_jobs_stale_claim_recovery` `(status, lockExpiresAt)` for crashed-worker reaping.
+   - `idx_scheduled_jobs_next_run` `(enabled, nextRunAt)` for cron dispatch.
+   - `idx_dlq_queue_status` for dashboard DLQ lists.
+5. **Uniqueness**: `organizations.slug`, `users.email`, `(organizationId, slug)` on projects, `(projectId, name)` on queues, and `jobs.idempotencyKey` prevent duplicates under concurrent writers.
+
+---
+
+## 3. Schema Design Evolution & Key Choices
+
+1. **Multi-Tenant Isolation**: `Organization` is the tenancy boundary. API access is scoped by `organizationId` from the JWT rather than separate physical schemas.
+2. **Idempotency Key Deduplication**: `Job.idempotencyKey` has a database unique constraint so concurrent enqueue retries cannot create two runnable rows.
+3. **Atomic Claiming Indexing**: Claim queries stay index-backed so `SKIP LOCKED` remains cheap as backlog grows.
+4. **Execution Audit & Logs**: Immutable `JobExecution` rows hold retry history, worker assignment, duration, and result/error. `JobLog` is the append-only timeline for state transitions and handler messages.

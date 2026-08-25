@@ -176,7 +176,7 @@ export const WorkerFleetView: React.FC<WorkerFleetViewProps> = ({ projectId, onT
         <div className="p-12 rounded-2xl bg-[#141414] border border-white/10 text-center text-gray-500 font-mono text-xs space-y-2">
           <Server className="w-8 h-8 text-gray-600 mx-auto mb-2" />
           <p className="text-gray-300 font-bold">No active worker daemons detected</p>
-          <p>Start a worker node (`pnpm --filter @job-scheduler/worker dev`) to service queues.</p>
+          <p>Start the local stack (`pnpm dev`) to register three worker nodes.</p>
         </div>
       )}
     </div>

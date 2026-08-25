@@ -67,6 +67,9 @@ export class JobsService {
   async createJob(queueId: string, userOrgId: string, dto: CreateJobDto) {
     await this.verifyQueueAccess(queueId, userOrgId);
 
+    const scheduledAt =
+      dto.delaySec && dto.delaySec > 0 ? new Date(Date.now() + dto.delaySec * 1000) : undefined;
+
     const result = await enqueueJobWithIdempotency(
       queueId,
       dto.type,
@@ -75,10 +78,11 @@ export class JobsService {
       {
         priority: dto.priority ?? 0,
         maxAttempts: dto.maxAttempts ?? 3,
+        scheduledAt,
       }
     );
 
-    return result.job;
+    return result;
   }
 
   async createBatchJob(queueId: string, userOrgId: string, dto: CreateBatchJobDto) {

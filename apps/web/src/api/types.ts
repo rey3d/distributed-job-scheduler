@@ -48,6 +48,17 @@ export interface QueueLiveCounts {
   failed: number;
 }
 
+export type RetryStrategy = 'FIXED' | 'LINEAR' | 'EXPONENTIAL';
+
+export interface RetryPolicy {
+  id: string;
+  name: string;
+  strategy: RetryStrategy;
+  baseDelaySec: number;
+  maxAttempts: number;
+  maxDelayCapSec: number;
+}
+
 export interface Queue {
   id: string;
   projectId: string;
@@ -57,6 +68,7 @@ export interface Queue {
   concurrencyLimit: number;
   paused: boolean;
   retryPolicyId?: string;
+  retryPolicy?: RetryPolicy | null;
   liveCounts?: QueueLiveCounts;
   createdAt: string;
   updatedAt: string;
@@ -87,6 +99,7 @@ export interface JobExecution {
   durationMs?: number;
   result?: any;
   error?: any;
+  worker?: { id: string; name: string; hostname: string };
 }
 
 export interface JobLog {

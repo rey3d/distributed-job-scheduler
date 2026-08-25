@@ -32,9 +32,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers,
   });
 
-  if (response.status === 401) {
+  if (response.status === 401 && !endpoint.startsWith('/auth/')) {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_org');
+    localStorage.removeItem('auth_project');
     window.dispatchEvent(new Event('auth:unauthorized'));
   }
 
@@ -125,13 +127,38 @@ export const api = {
   getQueueStats: (queueId: string) =>
     request<QueueStats>(`/queues/${queueId}/stats`),
 
-  createQueue: (projectId: string, data: { name: string; priority?: number; concurrencyLimit?: number }) =>
+  createQueue: (
+    projectId: string,
+    data: {
+      name: string;
+      priority?: number;
+      concurrencyLimit?: number;
+      retryPolicy?: {
+        strategy: string;
+        baseDelaySec?: number;
+        maxAttempts?: number;
+        maxDelayCapSec?: number;
+      };
+    }
+  ) =>
     request<Queue>(`/projects/${projectId}/queues`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  updateQueue: (queueId: string, data: { priority?: number; concurrencyLimit?: number }) =>
+  updateQueue: (
+    queueId: string,
+    data: {
+      priority?: number;
+      concurrencyLimit?: number;
+      retryPolicy?: {
+        strategy: string;
+        baseDelaySec?: number;
+        maxAttempts?: number;
+        maxDelayCapSec?: number;
+      };
+    }
+  ) =>
     request<Queue>(`/queues/${queueId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -150,7 +177,7 @@ export const api = {
   // Jobs
   enqueueJob: async (
     queueId: string,
-    data: { type: string; payload?: any; priority?: number; delaySec?: number }
+    data: { type: string; payload?: any; priority?: number; delaySec?: number; maxAttempts?: number }
   ): Promise<Job> => {
     const res = await request<any>(`/queues/${queueId}/jobs`, {
       method: 'POST',
@@ -158,6 +185,30 @@ export const api = {
     });
     return res?.job || res;
   },
+
+  enqueueScheduledJob: (
+    queueId: string,
+    data: {
+      name: string;
+      jobType: string;
+      payload: any;
+      runAt?: string;
+      cronExpression?: string;
+    }
+  ) =>
+    request<any>(`/queues/${queueId}/jobs/scheduled`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  enqueueBatchJobs: (
+    queueId: string,
+    data: { jobs: Array<{ type: string; payload: any; priority?: number }> }
+  ) =>
+    request<any>(`/queues/${queueId}/jobs/batch`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   getJobs: (queueId: string, params: { status?: string; page?: number; limit?: number } = {}) => {
     const query = new URLSearchParams();

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, Organization, Project, AuthResponse } from '../api/types';
 import { api } from '../api/client';
 
@@ -17,162 +17,159 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('auth_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+function readJson<T>(key: string): T | null {
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    localStorage.removeItem(key);
+    return null;
+  }
+}
 
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem('auth_token');
-  });
+function projectBelongsToOrg(project: Project | null, orgId: string | undefined): project is Project {
+  return Boolean(project && orgId && project.organizationId === orgId);
+}
 
-  const [organization, setOrganization] = useState<Organization | null>(() => {
-    const saved = localStorage.getItem('auth_org');
-    return saved ? JSON.parse(saved) : null;
+const AuthProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUserState] = useState<User | null>(() => readJson<User>('auth_user'));
+  const [token, setTokenState] = useState<string | null>(() => localStorage.getItem('auth_token'));
+  const [organization, setOrganizationState] = useState<Organization | null>(() =>
+    readJson<Organization>('auth_org')
+  );
+  const [project, setProjectState] = useState<Project | null>(() => {
+    const org = readJson<Organization>('auth_org');
+    const saved = readJson<Project>('auth_project');
+    if (projectBelongsToOrg(saved, org?.id)) {
+      return saved;
+    }
+    localStorage.removeItem('auth_project');
+    return null;
   });
-
-  const [project, setProject] = useState<Project | null>(() => {
-    const saved = localStorage.getItem('auth_project');
-    return saved ? JSON.parse(saved) : null;
-  });
-
   const [isLoading, setIsLoading] = useState(false);
+  const bootstrapLock = useRef(false);
+
+  const persistUser = (next: User | null) => {
+    setUserState(next);
+    if (next) localStorage.setItem('auth_user', JSON.stringify(next));
+    else localStorage.removeItem('auth_user');
+  };
+
+  const persistToken = (next: string | null) => {
+    setTokenState(next);
+    if (next) localStorage.setItem('auth_token', next);
+    else localStorage.removeItem('auth_token');
+  };
+
+  const persistOrganization = (next: Organization | null) => {
+    setOrganizationState(next);
+    if (next) localStorage.setItem('auth_org', JSON.stringify(next));
+    else localStorage.removeItem('auth_org');
+  };
+
+  const persistProject = (next: Project | null) => {
+    setProjectState(next);
+    if (next) localStorage.setItem('auth_project', JSON.stringify(next));
+    else localStorage.removeItem('auth_project');
+  };
+
+  const clearTenantScope = () => {
+    persistProject(null);
+    persistOrganization(null);
+  };
+
+  const clearSession = () => {
+    persistUser(null);
+    persistToken(null);
+    persistOrganization(null);
+    persistProject(null);
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_org');
+    localStorage.removeItem('auth_project');
+  };
 
   useEffect(() => {
-    const handleUnauthorized = () => {
-      setUser(null);
-      setToken(null);
-      setOrganization(null);
-      setProject(null);
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('auth_org');
-      localStorage.removeItem('auth_project');
-    };
-
+    const handleUnauthorized = () => clearSession();
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
-  const bootstrapDefaultOrgAndProject = useCallback(
-    async (overrideOrg?: Organization | null, overrideUser?: User | null) => {
-      try {
-        const currentUser = overrideUser || user;
-        const currentOrg = overrideOrg || organization;
-        const orgId = currentOrg?.id || currentUser?.organizationId;
+  const bootstrapWorkspace = useCallback(async (org: Organization) => {
+    if (!org?.id || bootstrapLock.current) return;
+    bootstrapLock.current = true;
 
-        if (!orgId) return;
+    try {
+      const res = await api.getProjectsForOrg(org.id);
+      const projectList: Project[] = Array.isArray(res) ? res : res.data || [];
+      const owned = projectList.filter((p) => p.organizationId === org.id);
 
-        // 1. Fetch existing Projects for Organization
-        let proj = project;
-        if (!proj) {
-          const res = await api.getProjectsForOrg(orgId);
-          const projectList = Array.isArray(res) ? res : res.data || [];
-          if (projectList.length > 0) {
-            proj = projectList[0];
-          } else {
-            proj = await api.createProject(orgId, 'Production Core', `prod-core-${Date.now().toString().slice(-4)}`);
-          }
-          setProject(proj);
-          localStorage.setItem('auth_project', JSON.stringify(proj));
+      let nextProject: Project | null = owned[0] ?? null;
+
+      if (!nextProject) {
+        try {
+          nextProject = await api.createProject(org.id, 'Default', 'default');
+        } catch {
+          const retry = await api.getProjectsForOrg(org.id);
+          const retryList: Project[] = Array.isArray(retry) ? retry : retry.data || [];
+          nextProject = retryList.find((p) => p.organizationId === org.id) || null;
         }
-
-        // 2. Ensure default Queues exist under this Project
-        if (proj) {
-          const queues = await api.getQueues(proj.id);
-          if (!queues || queues.length === 0) {
-            await api.createQueue(proj.id, {
-              name: 'email-notifications',
-              priority: 10,
-              concurrencyLimit: 25,
-            });
-            await api.createQueue(proj.id, {
-              name: 'payment-reconciliation',
-              priority: 50,
-              concurrencyLimit: 5,
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Failed to bootstrap default org/project:', err);
       }
-    },
-    [user, organization, project]
-  );
 
-  // Auto-bootstrap project if user is logged in but project is missing
-  useEffect(() => {
-    if (user && token && !project) {
-      bootstrapDefaultOrgAndProject();
+      persistProject(nextProject);
+    } catch (err) {
+      console.error('Failed to bootstrap tenant workspace:', err);
+      persistProject(null);
+    } finally {
+      bootstrapLock.current = false;
     }
-  }, [user, token, project, bootstrapDefaultOrgAndProject]);
+  }, []);
+
+  useEffect(() => {
+    if (!user || !token || !organization?.id) return;
+    if (projectBelongsToOrg(project, organization.id)) return;
+    if (project) {
+      persistProject(null);
+    }
+    void bootstrapWorkspace(organization);
+  }, [user, token, organization, project, bootstrapWorkspace]);
+
+  const applyAuthResponse = async (res: AuthResponse) => {
+    const jwt = res.accessToken || res.token || '';
+    persistProject(null);
+    persistUser(res.user);
+    persistToken(jwt);
+    persistOrganization(res.organization || null);
+    if (res.organization) {
+      await bootstrapWorkspace(res.organization);
+    }
+  };
 
   const login = async (email: string, password = 'password123') => {
     setIsLoading(true);
     try {
-      let res: AuthResponse;
-      try {
-        res = await api.login(email, password);
-      } catch (err: any) {
-        if (err.message && err.message.includes('Invalid credentials')) {
-          // Auto-provision new user and default organization on first login
-          const defaultOrgName = 'Acme Operations Corp';
-          res = await api.register(email, defaultOrgName, password);
-        } else {
-          throw err;
-        }
-      }
-
-      const jwt = res.accessToken || res.token || '';
-      setUser(res.user);
-      setToken(jwt);
-      localStorage.setItem('auth_user', JSON.stringify(res.user));
-      localStorage.setItem('auth_token', jwt);
-
-      if (res.organization) {
-        setOrganization(res.organization);
-        localStorage.setItem('auth_org', JSON.stringify(res.organization));
-      }
-
-      await bootstrapDefaultOrgAndProject(res.organization, res.user);
+      clearTenantScope();
+      const res = await api.login(email, password);
+      await applyAuthResponse(res);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (
-    email: string,
-    organizationName: string,
-    password = 'password123'
-  ) => {
+  const register = async (email: string, organizationName: string, password = 'password123') => {
     setIsLoading(true);
     try {
+      clearTenantScope();
       const res = await api.register(email, organizationName, password);
-      const jwt = res.accessToken || res.token || '';
-
-      setUser(res.user);
-      setToken(jwt);
-      localStorage.setItem('auth_user', JSON.stringify(res.user));
-      localStorage.setItem('auth_token', jwt);
-
-      if (res.organization) {
-        setOrganization(res.organization);
-        localStorage.setItem('auth_org', JSON.stringify(res.organization));
-      }
-
-      await bootstrapDefaultOrgAndProject(res.organization, res.user);
+      await applyAuthResponse(res);
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
-    setOrganization(null);
-    setProject(null);
-    localStorage.clear();
+    clearSession();
   };
 
   return (
@@ -186,13 +183,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
-        setOrganization,
-        setProject,
+        setOrganization: persistOrganization,
+        setProject: persistProject,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return <AuthProviderInner>{children}</AuthProviderInner>;
 };
 
 export const useAuth = () => {
