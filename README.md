@@ -35,6 +35,40 @@ workers process jobs. See the [multi-worker verification guide](docs/multi-worke
 
 ---
 
+## Application screenshots
+
+### Operations dashboard
+
+The dashboard shows project-level health, queue status, backlog, completion
+metrics, throughput, and the count of online workers.
+
+![Operations dashboard](docs/images/dashboard.png)
+
+### Queue management and concurrency
+
+Queues expose priority, shared concurrency limits, retry policy, success rate,
+latency, throughput, and pause/edit controls.
+
+![Queues and concurrency](docs/images/queues.png)
+
+### Three-worker fleet
+
+`pnpm dev` launches three independent worker daemons. Each self-registers with
+a unique worker ID and process ID, and sends liveness heartbeats visible here.
+The older stopped processes are deliberately identified as stale, demonstrating
+worker-health monitoring in addition to the three active workers.
+
+![Worker fleet with three online workers](docs/images/worker-fleet.png)
+
+### Dead Letter Queue recovery
+
+Permanently failed jobs retain failure context and can be explicitly retried
+from the Dead Letter Queue.
+
+![Dead Letter Queue](docs/images/dead-letter-queue.png)
+
+---
+
 ## 🏗️ Monorepo Architecture Layout
 
 This project is organized as a `pnpm` workspace monorepo:
