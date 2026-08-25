@@ -6,6 +6,35 @@ Inspired by Sidekiq, BullMQ, and Celery, this platform provides atomic job claim
 
 ---
 
+## Reviewer quick verification
+
+```bash
+pnpm install
+cp .env.example .env
+docker compose up -d postgres
+pnpm db:generate
+pnpm db:push
+pnpm test
+pnpm --filter @job-scheduler/worker test:multi
+```
+
+The final command starts three independent worker processes and passes only if
+50 jobs complete exactly once, with zero duplicates, and at least two launched
+workers process jobs. See the [multi-worker verification guide](docs/multi-worker-verification.md).
+
+| Evaluation area | Evidence in this repository |
+| --- | --- |
+| System architecture | [Architecture](docs/architecture.md), Docker Compose, three-worker local startup |
+| Database design | [Prisma schema](packages/shared/prisma/schema.prisma), [ER diagram](docs/er-diagram.md), hot-path indexes |
+| Backend engineering | NestJS modules, JWT authentication, validation, pagination, structured errors and request logging |
+| Reliability & concurrency | Atomic `SKIP LOCKED` claims, shared queue-concurrency enforcement, retries, DLQ, heartbeats, stale-lock recovery |
+| Frontend & UX | Responsive dashboard for queues, jobs, DLQ, system health and worker fleet |
+| API design | Swagger UI at `/api/docs` and [OpenAPI specification](docs/api-spec.json) |
+| Documentation | Architecture, ER model, scaling, design decisions and verification guides |
+| Testing | `pnpm test` and the automated three-worker proof |
+
+---
+
 ## 🏗️ Monorepo Architecture Layout
 
 This project is organized as a `pnpm` workspace monorepo:
@@ -140,7 +169,7 @@ pnpm --filter @job-scheduler/worker test:multi
 ```
 
 The command exits non-zero unless every job completes exactly once and at least
-two distinct worker instances process the workload. See
+two of its launched worker instances process the workload. See
 [`docs/multi-worker-verification.md`](docs/multi-worker-verification.md) for
 the expected evidence and Docker alternative.
 
@@ -148,7 +177,7 @@ the expected evidence and Docker alternative.
 
 ## 📚 Technical Documentation & Specs
 
-- 📐 **[System Architecture (`docs/architecture.md`)](file:///d:/codilty.ai/docs/architecture.md)**: Component topology, sequence diagrams, and horizontal scale-out guarantees.
-- 🗄️ **[Entity-Relationship Diagram (`docs/er-diagram.md`)](file:///d:/codilty.ai/docs/er-diagram.md)**: Visual schema model of all 12 domain entities.
-- 📑 **[OpenAPI / Swagger Spec (`docs/api-spec.json`)](file:///d:/codilty.ai/docs/api-spec.json)**: Exported OpenAPI 3.0 specification covering all REST API endpoints.
-- 💡 **[Design Decisions (`docs/DESIGN_DECISIONS.md`)](file:///d:/codilty.ai/docs/DESIGN_DECISIONS.md)**: In-depth technical rationale on PostgreSQL `SKIP LOCKED`, polling intervals, retry backoff algorithms, scope trade-offs, and scaling limits.
+- 📐 **[System Architecture](docs/architecture.md)**: Component topology, sequence diagrams, and horizontal scale-out guarantees.
+- 🗄️ **[Entity-Relationship Diagram](docs/er-diagram.md)**: Visual schema model of all domain entities.
+- 📑 **[OpenAPI / Swagger Spec](docs/api-spec.json)**: Exported OpenAPI 3.0 specification covering REST endpoints.
+- 💡 **[Design Decisions](docs/DESIGN_DECISIONS.md)**: Technical rationale, trade-offs, and scaling limits.
