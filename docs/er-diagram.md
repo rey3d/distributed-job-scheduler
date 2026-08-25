@@ -11,7 +11,7 @@ erDiagram
     Organization ||--o{ User : "has members"
     Organization ||--o{ Project : "owns projects"
     Project ||--o{ Queue : "contains queues"
-    Queue }o--o| RetryPolicy : "uses retry strategy"
+    Queue }o--|| RetryPolicy : "uses retry strategy"
     Queue ||--o{ Job : "holds jobs"
     Queue ||--o{ ScheduledJob : "defines cron or delayed runs"
     Queue ||--o{ Batch : "groups batch submissions"
@@ -20,8 +20,8 @@ erDiagram
     Job ||--o{ JobExecution : "records execution history"
     Job ||--o{ JobLog : "generates audit logs"
     Job ||--o{ WorkerHeartbeat : "currently processing"
-    Job }o--o| Worker : "locked by worker"
-    Job ||--o| DeadLetterJob : "original job"
+    Job }o--|| Worker : "locked by worker"
+    Job ||--|| DeadLetterJob : "original job"
     JobExecution ||--o{ JobLog : "attempt logs"
     Worker ||--o{ WorkerHeartbeat : "sends heartbeats"
     Worker ||--o{ JobExecution : "executes jobs"
@@ -161,7 +161,8 @@ erDiagram
 
     DeadLetterJob {
         uuid id PK
-        uuid originalJobId FK UK
+        uuid originalJobId FK
+        string originalJobIdUnique "UK"
         uuid queueId FK
         datetime failedAt
         json lastError
@@ -181,7 +182,7 @@ erDiagram
    - `Project → Queue → Job/ScheduledJob/Batch/DLQ` cascade delete.
    - `RetryPolicy` uses `onDelete: SetNull` on queues so policy rows can be reused.
    - `Worker` locks on jobs use `onDelete: SetNull` so worker deregistration does not delete jobs.
-3. **Normalization**: Retry math lives in `RetryPolicy` (3NF) rather than duplicating strategy fields on every job. Execution attempts are a child table (`JobExecution`) instead of mutating a single job row. Recurring definitions are `ScheduledJob`; one-shot delayed jobs use `Job.scheduledAt`.
+3. **Normalization**: Retry math lives in `RetryPolicy` (3NF) rather than duplicating strategy fields on every job. Execution attempts are a child table (`JobExecution`) instead of mutating a sin[...]
 4. **Hot-path indexes**:
    - `idx_jobs_claim_hotpath` `(queueId, status, scheduledAt, priority DESC, createdAt ASC)` for `FOR UPDATE SKIP LOCKED`.
    - `idx_jobs_stale_claim_recovery` `(status, lockExpiresAt)` for crashed-worker reaping.
@@ -196,4 +197,4 @@ erDiagram
 1. **Multi-Tenant Isolation**: `Organization` is the tenancy boundary. API access is scoped by `organizationId` from the JWT rather than separate physical schemas.
 2. **Idempotency Key Deduplication**: `Job.idempotencyKey` has a database unique constraint so concurrent enqueue retries cannot create two runnable rows.
 3. **Atomic Claiming Indexing**: Claim queries stay index-backed so `SKIP LOCKED` remains cheap as backlog grows.
-4. **Execution Audit & Logs**: Immutable `JobExecution` rows hold retry history, worker assignment, duration, and result/error. `JobLog` is the append-only timeline for state transitions and handler messages.
+4. **Execution Audit & Logs**: Immutable `JobExecution` rows hold retry history, worker assignment, duration, and result/error. `JobLog` is the append-only timeline for state transitions and hand[...]
